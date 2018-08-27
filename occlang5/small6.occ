@@ -1,0 +1,6 @@
+PROC awl(CHAN OF ANY a)
+  INT c :
+  []BYTE d RETYPES c:
+  BYTE e IS d[0] :
+  a ! e
+:

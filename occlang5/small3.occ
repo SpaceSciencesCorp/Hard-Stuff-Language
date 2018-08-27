@@ -1,0 +1,8 @@
+INT FUNCTION awk(VAL INT a, VAL INT b)
+  INT c, d, e:
+  VALOF
+    SEQ
+      c, d := a, sin(b)
+      c, e := quot(a, b)
+    RESULT c
+:

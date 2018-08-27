@@ -1,0 +1,4 @@
+PROC awl(CHAN OF ANY a, b)
+  INT c, d :
+  a ! c ; d
+:
