@@ -1,0 +1,32 @@
+README: Introduction to "Hard Stuff Language"
+
+This project is a development that starts with the Communicating Sequential Processes (CSP) language occam 2, using the INMOS toolset targeted to Transputers, all dating around 1990. Related compilers of more recent vintage are available in Gavin Chase's Transputer Emulator and the KROC occam-Pi, and a more recent target is the Transterpreter. Many other retargetings are found in the literature during the occam retargeting project of the 1990s, and recent activity of the Communicating Process Architectures group are bringing the whole thing back to life (see CPA2017 and CPA2018). Legacy documentation is found on Michael Bruestle's www.transputer.net.
+
+This project focuses on translating occam to currently widely maintained yet CSP-friendly languages, starting with Go. The "guiding star" of the project is Hardware-Software Equivalence, documented in INMOS occam, especially the Toolset's configurer (occonf). Thus the language is static, with top-down resource allocation, and distributed resources consistent with multiple processors communicating point to point. Extension of occam to packet communication via block devices and TCP-like networks, while retaining its static nature, is a design target.
+
+The interested person can start with the CPA2018 Workshop slide deck
+
+CPA-Workshop-2018c.pdf
+
+which goes into more detail about these issues, but (intentionally) raises a lot of questions. To experiment with some of the Go-related concepts, pull the files in the directory gogo and run them in the Go playground play.golang.org (some take a few seconds with no apparent response to run timed delays).
+
+To work with the grammar, read the first few pages of
+
+Details-occam-parse.pdf
+
+and then go into directory occlang5. You will need a running copy of lex (really flex) and yacc (really bison); any standard one will do (I used Mac BSD).
+
+yacc -v -d OCCAMLIB.Y
+lex OCCAMLIB.L
+yacc -d OCCAMLIB.Y
+gcc lex.yy.c y.tab.c -o OCCAMLIB-COMPILER
+./OCCAMLIB-COMPILER < filename.occ >filename.out 2>filename.err
+
+Here filename.occ can be any of the *.occ files found in occlang5. Further reading in Details-occam-parse.pdf will explain the significance of each. There are ambiguities, some resolved by %dpref and others by the death of the false alternative.
+
+That is as far as I have gotten thus far. The types and semantics and output have yet to be worked on, let alone the proposed language extensions (and a number of already existing ones like RECORDs). But what is there should be exhaustive for occam 2.0, and restore the foundations of the heyday of the Transputer.
+
+All thoughts and ideas are welcome!
+
+Larry Dickson
+larry@spacesciencescorp.com
