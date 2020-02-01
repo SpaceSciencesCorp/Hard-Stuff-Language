@@ -1,0 +1,2 @@
+head -n 316 ../CRI.nl | tail -n 47
+head -n 321 ../CRI.nl | tail -n 2

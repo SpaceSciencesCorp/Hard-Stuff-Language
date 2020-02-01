@@ -1,0 +1,19 @@
+cd ljdtests
+for i in `ls *.OUT` ; do diff -qs $i ../../../occlang7/$i ; done 2>&1 | more
+read line
+for i in `ls *.ERR` ; do diff -qs $i ../../../occlang7/$i ; done 2>&1 | more
+read line
+for i in `ls *.out` ; do diff -qs $i ../../../occlang7/$i ; done 2>&1 | more
+read line
+for i in `ls *.err` ; do diff -qs $i ../../../occlang7/$i ; done 2>&1 | more
+read line
+cd ../cgtests
+for i in `ls *.OUT` ; do diff -qs $i ../../../occlang7/cgtests/$i ; done 2>&1 | more
+read line
+for i in `ls *.ERR` ; do diff -qs $i ../../../occlang7/cgtests/$i ; done 2>&1 | more
+read line
+for i in `ls *.out` ; do diff -qs $i ../../../occlang7/cgtests/$i ; done 2>&1 | more
+read line
+for i in `ls *.err` ; do diff -qs $i ../../../occlang7/cgtests/$i ; done 2>&1 | more
+read line
+cd ..

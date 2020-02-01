@@ -1,0 +1,16 @@
+echo $1 > ../des9/$1.des
+ind=0
+cur=$1
+while [ $ind -lt `wc -l < ../des9/$1.des` ] ; do
+  ind=$(($ind+1))
+  cur=`head -n $ind ../des9/$1.des | tail -n 1`
+  echo DESCENDANT $cur AT INDEX $ind
+  for i in `cat $cur` ; do
+    if grep -q "^$i\$" ../des9/$1.des ; then
+      echo $i REPEAT
+    else
+      echo $i >> ../des9/$1.des
+      echo $i NEW
+    fi
+  done
+done

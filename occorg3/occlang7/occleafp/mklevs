@@ -1,0 +1,9 @@
+../../S/mklev0
+../../S/mklevi 1
+../../S/mklevi 2
+../../S/mklevi 3
+../../S/mklevi 4
+../../S/mklevi 5
+rm -rf levp9/5.txt 
+echo Final:
+wc levp9/?.txt
