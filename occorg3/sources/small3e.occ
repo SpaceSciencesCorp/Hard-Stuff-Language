@@ -1,0 +1,9 @@
+INT FUNCTION awk(VAL INT a, VAL INT b)
+  INT c, d, e:
+  VALOF
+    SEQ i = 0 FOR 4
+      SEQ
+        c, d := a, sin(b)
+        c, e := quot(a, b)
+    RESULT c
+:

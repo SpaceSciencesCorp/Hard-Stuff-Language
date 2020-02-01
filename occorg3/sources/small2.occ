@@ -1,0 +1,6 @@
+INT FUNCTION add(VAL INT a, b)
+  INT c:
+  VALOF
+    c := a + b
+    RESULT c
+:

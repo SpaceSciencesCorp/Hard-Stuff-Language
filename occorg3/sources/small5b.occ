@@ -1,0 +1,5 @@
+INT FUNCTION awk(VAL INT a, VAL INT b)
+  VALOF
+    yaw(a+b)
+    RESULT b
+:

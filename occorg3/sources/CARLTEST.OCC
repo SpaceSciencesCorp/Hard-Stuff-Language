@@ -1,0 +1,59 @@
+PROC bigsnd([1000]INT buf, CHAN OF ANY out)
+  SEQ
+    out ! 1
+    SEQ i = 0 FOR 1000
+      buf[i] := i
+    out ! buf
+:
+PROC bigrcv([1000]INT buf, CHAN OF ANY in)
+  INT x :
+  SEQ
+    in ? x
+    in ? buf
+    IF
+      IF i = 0 FOR 1000
+        buf[i] <> i
+          STOP
+      TRUE
+        SKIP -- success
+:
+PROC littlesnd([1000]INT buf, CHAN OF ANY out)
+  SEQ
+    out ! 1
+    SEQ j = 0 FOR 100
+      out ! [buf FROM (j*10) FOR 10]
+:
+PROC littlercv([1000]INT buf, CHAN OF ANY in)
+  INT x, k :
+  SEQ
+    in ? x
+    k := 1000
+    SEQ j = 0 FOR 100
+      SEQ
+        k := k - 10
+        in ? [buf FROM k FOR 10]
+:
+PROC left(CHAN OF ANY in, out)
+  PAR
+    [1000]INT buf :
+    SEQ
+      bigsnd(buf, out)
+      littlesnd(buf, out)
+    [1000]INT buf :
+    SEQ
+      littlercv(buf, in)
+      bigrcv(buf, in)
+:
+PROC right(CHAN OF ANY in, out)
+  PAR
+    [1000]INT buf :
+    SEQ
+      bigrcv(buf, in)
+      littlercv(buf, in)
+    [1000]INT buf :
+    SEQ
+      SEQ i = 0 FOR 1000
+        buf[i] := i
+      littlesnd(buf, out)
+      bigsnd(buf, out)
+:

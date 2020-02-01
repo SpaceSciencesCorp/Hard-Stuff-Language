@@ -1,0 +1,177 @@
+#INCLUDE "hostio.inc"
+#USE "rs.t4h"
+--{{{  PROC GetMicrosecondTime64(VAL INT time, INT64 time64)
+PROC GetMicrosecondTime64(VAL INT time, INT64 time64)
+  [2]INT timelohi RETYPES time64 :
+  SEQ
+    IF
+      (timelohi[0] < 0) AND (time >= 0)
+        timelohi[1] := timelohi[1] + 1
+      TRUE
+        SKIP
+    timelohi[0] := time
+:
+--}}}
+--{{{  PROC inblocks(CHAN OF SP in, INT64 time64, TIMER clock, INT ind, VAL INT W, Tout, []BYTE D)
+PROC inblocks(CHAN OF SP in, INT64 time64, TIMER clock, INT ind, VAL INT W, Tout, []BYTE D)
+  -- length of D is W+9192, timeout is Tout
+  BOOL spinning :
+  SEQ
+    ind := 0
+    spinning := TRUE
+    WHILE spinning AND (ind < W)
+      INT16 len :
+      INT time : -- 32 bit
+      PRI ALT
+        clock ? AFTER Tout
+          SEQ
+            clock ? time -- keep time64 current even if no data
+            GetMicrosecondTime64(time, time64)
+            spinning := FALSE
+        -- limit frame size to 9180: occam will STOP if len bigger
+        in ? len::[[D FROM ind+12 FOR 9180] FROM 0 FOR (INT len)]
+          SEQ
+            VAL [2]BYTE FFFF RETYPES -1(INT16) : -- 2s complement
+            [D FROM ind FOR 2] := FFFF -- mark end of potential zeroes
+            VAL [2]BYTE blen RETYPES len :
+            [D FROM ind+2 FOR 2] := blen
+            clock ? time
+            GetMicrosecondTime64(time, time64)
+            VAL [8]BYTE btime64 RETYPES time64 :
+            [D FROM ind+4 FOR 8] := btime64
+            ind := ind + ((INT len) + 12)
+:
+--}}}
+--{{{  PROC RSblocks(VAL INT fullstep, VAL []BYTE D, []BYTE P)
+-- Organized this way so entire fullstep can go to one disk
+-- The coding of RS will be broken down using indices and FPGA code,
+-- but the effect will be as shown by the function call.
+-- The bits of an 8-bit finite field element are spaced by a
+-- multiple of 32 bits so as to allow efficient XOR calculations.
+-- 9 finite field elements of D, each on a different disk, generate
+-- 3 finite field elements of P, each on a different disk.
+PROC RSblocks(VAL INT fullstep, VAL []BYTE D, []BYTE P)
+  -- The following is the real shape of the data
+  -- VAL [9][fullstep]D9 RETYPES [D FROM 0 FOR 9*fullstep] :
+  -- [3][fullstep]P3 RETYPES [P FROM 0 FOR 3*fullstep] :
+  RS(9, 3, fullstep, D, P)
+:
+--}}}
+--{{{  PROC outblocks([12]CHAN OF INT::[]BYTE out, VAL INT fullstep, VAL []BYTE D, P)
+-- Organized this way so entire fullstep can go to one disk
+-- (RAID 4 style) Each component of out connects to a disk, which receives
+-- the count and adjusts its indices but does not store the count to disk,
+-- only the counted array.
+PROC outblocks([12]CHAN OF INT::[]BYTE out, VAL INT fullstep, VAL []BYTE D, P)
+  -- It does the equivalent of using this:
+  -- VAL [9][fullstep]D9 RETYPES [D FROM 0 FOR 9*fullstep] :
+  -- VAL [3][fullstep]P3 RETYPES [P FROM 0 FOR 3*fullstep] :
+  PAR
+    PAR i = 0 FOR 9
+      out[i] ! fullstep::[D FROM (i*fullstep) FOR fullstep]
+    PAR j = 0 FOR 3
+      out[9+j] ! fullstep::[P FROM (j*fullstep) FOR fullstep]
+:
+--}}}
+PROC Gbit100(CHAN OF SP in, [12]CHAN OF INT::[]BYTE out)
+  VAL INT step IS 4096 :
+  VAL INT step3 IS 3*step :
+  VAL INT step9 IS 9*step :
+  VAL INT maxout IS 82*step9 :
+  [3][maxout+9192]BYTE D3 :
+  [3][maxout]BYTE P3 :
+  TIMER clock :
+  [3]INT fullstep, validbytes :
+  INT64 secind : -- to be used to stop when disk full (not coded)
+  INT wasov, ov, Tout, indseq, wasleftover, leftover :
+  INT64 time64 : -- GLOBAL in effect
+  SEQ
+    time64 := 0(INT64) -- really do an initial real time
+    secind := (11000000000000(INT64))/(4096(INT64))
+    fullstep := [0, 0, 0]
+    validbytes := [0, 0, 0]
+    indseq := 0 -- starts in on 0, RS on 2, out on 1
+    wasov := 0 -- no overflow because no previous input
+    clock ? Tout
+    WHILE TRUE -- real code will have a graceful exit
+      SEQ
+        VAL INT wasovp4 IS wasov + 4 : -- input leaves 4 bytes empty
+        VAL INT W IS maxout - wasovp4 :
+        VAL INT iseq IS indseq : -- always 0, 1, or 2
+        VAL INT rseq IS (indseq+2) REM 3 : -- back 1
+        VAL INT oseq IS (indseq+1) REM 3 : -- back 2
+        []BYTE D3w IS [D3[iseq] FROM 0 FOR wasovp4] :
+        []BYTE D3i IS [D3[iseq] FROM wasovp4 FOR W+9192] :
+        []BYTE D3r IS [D3[rseq] FROM 0 FOR maxout] :
+        []BYTE D3ov IS [D3[rseq] FROM maxout FOR 9192] :
+        []BYTE D3o IS [D3[oseq] FROM 0 FOR maxout] :
+        []BYTE P3r IS P3[rseq] :
+        []BYTE P3o IS P3[oseq] :
+        -- indseq, wasov, wasleftover constant over all the PRI PAR
+        --{{{  This is the PRI PAR, with in and out high priority
+        PRI PAR
+          PAR
+            --{{{  input
+            INT inlen, ind, odd, nsteps :
+            SEQ
+              Tout := Tout + 240 -- time period 240 usec
+              inblocks(in, time64, clock, ind, W, Tout, D3i)
+              inlen := wasovp4 + ind -- never > maxout+9192
+              odd := inlen REM step9 -- note, step9 > 9192
+              ov := 0
+              leftover := 0
+              IF
+                inlen > maxout
+                  SEQ
+                    ov := odd -- so (inlen-ov) = maxout
+                    nsteps := 82
+                odd > 0
+                  SEQ
+                    leftover := step9 - odd
+                    nsteps := (inlen/step9)+1
+                TRUE -- odd < 0 is not possible
+                  nsteps := inlen/step9
+              fullstep[iseq] := nsteps*step
+              validbytes[iseq] := inlen - ov
+            --}}}
+            --{{{  output
+            IF
+              validbytes[oseq] > 0 -- validbytes[oseq]<0 is not possible
+                outblocks(out, fullstep[oseq], D3o, P3o)
+              TRUE
+                SKIP
+            --}}}
+          PAR
+            --{{{  overflow transfer
+            IF
+              wasov > 0 -- wasov set by previous input, never < 0
+                [D3w FROM 4 FOR wasov] := [D3ov FROM 0 FOR wasov]
+              TRUE
+                SKIP
+            --}}}
+            --{{{  Reed-Solomon
+            IF
+              validbytes[rseq] > 0 -- never < 0
+                SEQ
+                  -- Fill in the empty first 4 bytes
+                  VAL [2]BYTE FEFF RETYPES -2(INT16) : -- 2s complement
+                  [D3r FROM 0 FOR 2] := FEFF -- mark end of potential zeroes
+                  VAL INT nsteps IS fullstep[rseq]/step : -- sectors per disk
+                  VAL [2]BYTE bnsteps RETYPES (INT16 nsteps) :
+                  [D3r FROM 2 FOR 2] := bnsteps
+                  IF
+                    wasleftover > 0 -- never < 0
+                      -- do this with a memset
+                      SEQ i = 0 FOR wasleftover
+                        D3r[validbytes[rseq]+i] := 0(BYTE)
+                    TRUE
+                      SKIP
+                  RSblocks(fullstep[rseq], D3r, P3r)
+              TRUE
+                SKIP
+            --}}}
+        --}}}
+        indseq := (indseq + 1) REM 3
+        wasov := ov
+        wasleftover := leftover
+:

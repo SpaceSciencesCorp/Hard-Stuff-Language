@@ -1,0 +1,7 @@
+PROC yodel()
+  VAL z IS TRUE :
+  VAL y IS FALSE :
+  VAL x IS TRUE :
+  BOOL a :
+  a := z OR y AND x
+:

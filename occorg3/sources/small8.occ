@@ -1,0 +1,11 @@
+PROC awl(CHAN OF ANY a, b)
+  INT d :
+  BOOL e :
+  SEQ
+    ALT
+      [e][0] & a ? d
+        SKIP
+      [d][1]BOOL c :
+      b ? c
+        SKIP
+:
