@@ -1,0 +1,5 @@
+../S/nltocrlf cgtest10.occ > cgtest10.occ
+./checky10 > cgtesy10.occ
+../S/checkmr2 6 cgtesy10.occ > cgtest10.oco
+../S/rmblankl cgtest10.oco | ../S/rmblanke > cgtesb10.oco
+diff cgtesb10.oco ../cgtests/cgtesb10.occ > ../diffs/cgtesb10occ.dif

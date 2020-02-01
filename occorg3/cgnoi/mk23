@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest23.occ > cgtest23.occ
+../S/checkm2 7 cgtest23.occ CGMAIA2.OCC cgmain.occ > cgtest23.oco
+../S/rmblankl cgtest23.oco | ../S/rmblanke > cgtesb23.oco
+diff cgtesb23.oco ../cgtests/cgtesb23.occ > ../diffs/cgtesb23occ.dif

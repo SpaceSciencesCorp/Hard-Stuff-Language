@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest25.occ > cgtest25.occ
+../S/checkmr2 7 cgtest25.occ CGMAIA2.OCC cgmain.occ > cgtest25.oco
+../S/rmblankl cgtest25.oco > cgtesb25.oco
+diff cgtesb25.oco ../cgtests/cgtesb25.occ > ../diffs/cgtesb25occ.dif

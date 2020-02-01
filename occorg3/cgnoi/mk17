@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest17.occ > cgtest17.occ
+../S/checkm2 6 cgtest17.occ CGMAIA2.OCC cgmain.occ > cgtest17.oco
+../S/rmblankl cgtest17.oco | ../S/rmblanke > cgtesb17.oco
+diff cgtesb17.oco ../cgtests/cgtesc17.occ > ../diffs/cgtesc17occ.dif

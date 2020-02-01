@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest06.occ > cgtest06.occ
+../S/checkmr2 7 cgtest06.occ > cgtest06.oco
+../S/rmblankl cgtest06.oco > cgtesb06.oco
+diff cgtesb06.oco ../cgtests/cgtesb06.occ > ../diffs/cgtesb06occ.dif

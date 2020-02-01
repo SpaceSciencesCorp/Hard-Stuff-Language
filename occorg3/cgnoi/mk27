@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest27.occ > cgtest27.occ
+../S/checkmr2 6 cgtest27.occ CGMAIA2.OCC cgmain.occ > cgtest27.oco
+../S/rmblankl cgtest27.oco | awk -f ../S/tab2spaces.awk > cgtesb27.oco
+diff cgtesb27.oco ../cgtests/cgtesb27.occ > ../diffs/cgtesb27occ.dif

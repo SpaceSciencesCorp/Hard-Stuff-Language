@@ -1,0 +1,5 @@
+../S/nltocrlf cgtest20.occ > cgtest20.occ
+../S/checkm4 19 cgtest20.occ cg10s4i16.occ cg10i16.occ > cgtesy20.occ
+../S/checkmr2 6 cgtesy20.occ > cgtest20.oco
+../S/rmblankl cgtest20.oco | ../S/rmblanke > cgtesb20.oco
+diff cgtesb20.oco ../cgtests/cgtesb20.occ > ../diffs/cgtesb20occ.dif

@@ -1,0 +1,4 @@
+../S/foldcln ../sources/hostio.inc > hostio.inc
+../S/xtabtrsp ../sources/SIMPLE.OCC > simpla.occ
+../S/checkm0 1 simpla.occ hostio.inc hostio.inc > simplb.occ
+diff -s simplb.occ ../cgtests

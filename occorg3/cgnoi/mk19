@@ -1,0 +1,10 @@
+../S/nltocrlf config.inc | ../S/rmblankl > config.inc
+../S/nltocrlf cgtest19.occ > cgtest19.occ
+../S/checkmr2 10 cgtest19.occ > cgtest19.oco
+../S/rmblankl cgtest19.oco | ../S/rmblanke | awk -f ../S/tab2spaces.awk > cgtesb19.oco
+../S/checkm0 3 cgtesb19.oco config.inc config.inc > cgtesa19.ocx
+../S/twospace config.inc > configs2.inc
+../S/checkm2 4 cgtesb19.oco configs2.inc config.inc > cgtesb19.ocx
+diff cgtesa19.ocx ../cgtests/cgtesa19.occ > ../diffs/cgtesa19occ.dif
+diff cgtesb19.ocx ../cgtests/cgtesb19.occ > ../diffs/cgtesb19occ.dif
+diff -u ../cgtests/cgtesa19.occ ../cgtests/cgtesb19.occ > ../diffs/ab19occ.dif

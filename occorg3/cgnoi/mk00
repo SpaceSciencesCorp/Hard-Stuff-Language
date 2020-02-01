@@ -1,0 +1,5 @@
+../S/nltocrlf cgtest00.occ | awk -f ../S/tab2spaces.awk > cgtest00.oci
+diff cgtest00.oci ../cginclud > ../diffs/cgtest00oci.dif
+../S/checkm2 4 ../cginclud/cgtest00.oci CGMAIA2.OCC cgmain.occ > cgtest00.oco
+../S/rmblankl cgtest00.oco > cgtesb00.oco
+diff cgtesb00.oco ../cgtests/cgtesb00.occ > ../diffs/cgtesb00occ.dif

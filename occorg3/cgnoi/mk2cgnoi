@@ -1,0 +1,7 @@
+../S/nltocrlf cglib.occ > cglib.occ
+../S/foldcln cglib.occ > cglia.occ
+../S/nltocrlf cgmain.occ | awk -f ../S/tab2spaces.awk > cgmaia.oci
+diff cgmaia.oci ../cginclud > ../diffs/cgmaiaoci.dif
+../S/checkm0 1 ../cginclud/cgmaia.oci cglia.occ cglib.occ > cgmaia.oco
+diff cgmaia.oco ../cginclud/cgmaia.occ > ../diffs/cgmaiaocc.dif
+../S/twospace ../cginclud/cgmaia.occ > CGMAIA2.OCC

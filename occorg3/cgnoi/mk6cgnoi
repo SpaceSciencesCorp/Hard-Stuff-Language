@@ -1,0 +1,9 @@
+../S/nltocrlf cg10i16.occ | ../S/rmblankl > cg10i16.occ
+../S/twospace cg10i16.occ > cg10s2i16.occ
+../S/twospace cg10s2i16.occ > cg10s4i16.occ
+../S/nltocrlf cg10i32.occ | ../S/rmblankl > cg10i32.occ
+../S/twospace cg10i32.occ > cg10s2i32.occ
+../S/twospace cg10s2i32.occ > cg10s4i32.occ
+../S/nltocrlf cg10i64.occ | ../S/rmblankl > cg10i64.occ
+../S/twospace cg10i64.occ > cg10s2i64.occ
+../S/twospace cg10s2i64.occ > cg10s4i64.occ

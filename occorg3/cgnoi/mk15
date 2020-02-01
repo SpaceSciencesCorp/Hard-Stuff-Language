@@ -1,0 +1,4 @@
+../S/nltocrlf cgtest15.occ > cgtest15.occ
+../S/checkmr2 7 cgtest15.occ > cgtest15.oco
+../S/rmblankl cgtest15.oco | ../S/rmblanke > cgtesb15.oco
+diff cgtesb15.oco ../cgtests/cgtesc15.occ > ../diffs/cgtesc15occ.dif

@@ -1,0 +1,12 @@
+last=$(echo $((`wc -l <cgtest10.occ`-15)))
+head -n 15 cgtest10.occ
+echo -e -n "    --{{{  cg10misc.occ\r\n"
+cat cg10s4misc.occ
+echo -e -n "    --}}}\r\n"
+echo -e -n "    --{{{  cg10r64.occ\r\n"
+cat cg10s4r64.occ
+echo -e -n "    --}}}\r\n"
+echo -e -n "    --{{{  cg10r32.occ\r\n"
+cat cg10s4r32.occ
+echo -e -n "    --}}}\r\n"
+tail -n $last cgtest10.occ

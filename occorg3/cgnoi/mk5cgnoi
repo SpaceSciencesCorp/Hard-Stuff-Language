@@ -1,0 +1,9 @@
+../S/nltocrlf cg10int.occ | ../S/rmblankl > cg10int.occ
+../S/twospace cg10int.occ > cg10s2int.occ
+../S/twospace cg10s2int.occ > cg10s4int.occ
+../S/nltocrlf cg10byte.occ | ../S/rmblankl > cg10byte.occ
+../S/twospace cg10byte.occ > cg10s2byte.occ
+../S/twospace cg10s2byte.occ > cg10s4byte.occ
+../S/nltocrlf cg10long.occ > cg10long.occ
+../S/twospace cg10long.occ > cg10s2long.occ
+../S/twospace cg10s2long.occ > cg10s4long.occ
