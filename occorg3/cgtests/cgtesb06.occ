@@ -1,0 +1,1242 @@
+-- version control marker $Id: cgtest06.occ,v 1.5 1996/11/05 12:15:46 svd Exp $
+-- Test PAR and replicated PAR
+PROC cgtest6 (CHAN OF BYTE keyb, scr, err)
+  #INCLUDE "cgmain.occ"
+  #INCLUDE "cgreal.occ"
+  --{{{  cgmain.occ
+  -- version control marker $Id: cgmain.occ,v 3.9 1997/03/06 16:36:15 dcw Exp $
+  --{{{  cglib.occ
+  -- version control marker $Id: cglib.occ,v 1.6 1997/01/30 12:31:09 dcw Exp $
+  --
+  -- Cut-down version of the output utilities from the course library
+  --{{{  some constants
+  VAL BYTE BELL IS 7(BYTE):
+  VAL BYTE NULL IS 0(BYTE):
+  VAL BYTE BACK IS 8(BYTE):
+  VAL BYTE DELETE IS 127(BYTE):
+  --}}}
+  --{{{  out stuff
+  PROC out.repeat (VAL BYTE ch,  VAL INT n,  CHAN OF BYTE out)
+    --{{{
+    IF
+      n > 0
+        SEQ i = 0 FOR n
+          SEQ
+            out ! ch
+      TRUE
+        SKIP
+    --}}}
+  :
+  PROC out.ch (VAL BYTE ch,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    SEQ
+      out.repeat (' ', field - 1, out)
+      out ! ch
+    --}}}
+  :
+  PROC out.ch.funny (VAL BYTE ch,  VAL INT field,  CHAN OF [1]BYTE out)
+    --{{{
+    SEQ
+      VAL [1]BYTE thing RETYPES ch:
+      out ! thing
+    --}}}
+  :
+  PROC out.nl (CHAN OF BYTE out)
+    SEQ
+      out ! '*c'
+      out ! '*n'
+  :
+  PROC in.ch (BYTE ch, CHAN OF BYTE in)
+    --{{{
+    in ? ch
+    --}}}
+  :
+  PROC out.bell (CHAN OF BYTE out)
+    --{{{
+    out.ch (BELL, 1, out)
+    --}}}
+  :
+  PROC out.string (VAL []BYTE s,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL length IS SIZE s:
+    SEQ
+      out.repeat (' ', field - length, out)
+      SEQ i = 0 FOR length
+        SEQ
+          out ! s [i]
+    --}}}
+  :
+  PROC out.number (VAL INT n,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL max.digits IS 20:
+    [max.digits]INT D:
+    INT x, i:
+    IF
+      (n = 0)
+        --{{{  zero
+        SEQ
+          IF
+            (1 < field)
+              out.repeat (' ', field - 1, out)
+            (TRUE)
+              SKIP
+          out ! '0'
+        --}}}
+      (TRUE)
+        SEQ
+          i := 0     --  bring this line up here,   Vedat
+          --{{{  check negative
+          IF
+            (n < 0)
+              SEQ        -- this one can handle MOSTNEG INT as well
+                D [i] := -(n\10)
+                x := -(n/10)
+                i:= i + 1
+            (TRUE)         -- (n > 0)
+              x := n
+          --}}}
+          --{{{  decompose
+          -- i := 0   -- this line goes up in order to handle MOSTNEG INT
+          WHILE x > 0
+            SEQ
+              D [i] := x\10
+              x := x/10
+              i := i + 1
+          --}}}
+          --{{{  pad
+          IF
+            (n > 0)
+              out.repeat (' ', field - i, out)
+            (TRUE)
+              SEQ
+                out.repeat (' ', (field - 1) - i, out)
+                out ! '-'
+          --}}}
+          --{{{  output
+          WHILE i > 0
+            SEQ
+              i := i - 1
+              out ! BYTE (D [i] + (INT '0'))
+          --}}}
+    --}}}
+  :
+  PROC out.bool (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      (b = TRUE)
+        out.ch ('1', field, out)
+      (b = FALSE)
+        out.ch ('0', field, out)
+      (TRUE)
+        out.ch ('.', field, out)
+    --}}}
+  :
+  PROC out.yes.no (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      b
+        out.string ("yes", field, out)
+      TRUE
+        out.string ("no", field, out)
+    --}}}
+  :
+  PROC out.hex.int (VAL INT x, l, CHAN OF BYTE out)
+    --{{{  body of cg.write.hex.int
+    -- this procedure ignores the field length parameter 'l'
+    -- independent of endianism - DCW
+    VAL INT nibble          IS #F:
+    VAL INT hex.dig.per.int IS 8:
+    VAL INT bit.per.hex.dig IS 4:
+    VAL hex.dig             IS "0123456789ABCDEF":
+    INT digit, mask, shift:
+    [12]BYTE s:
+    SEQ
+      s[0]:= '#'
+      SEQ i = 1 FOR hex.dig.per.int
+        SEQ
+          shift :=  (hex.dig.per.int - i) * bit.per.hex.dig
+          digit := (x >> shift) /\ nibble
+          s[i]:= hex.dig[digit]
+      out.string ([s FROM 0 FOR (hex.dig.per.int + 1)], 0, out)
+    --}}}
+  :
+  PROC black.hole (CHAN OF BYTE in)
+    --{{{
+    WHILE TRUE
+      BYTE any:
+      in ? any
+    --}}}
+  :
+  --}}}
+  --}}}
+  VAL display.names  IS TRUE :
+  --VAL display.names  IS TRUE :
+  --VAL display.titles IS display.names :
+  VAL display.titles IS TRUE :
+  VAL no.of.columns   IS 6 :
+  VAL width.of.column IS 10 :
+  TIMER timer:                    -- DCW
+  INT start.time, end.time:       -- DCW
+  INT column.count :
+  --{{{  [INLINE] PROC out (VAL INT ch)
+  PROC out (VAL INT ch)
+    SEQ
+      IF
+        (ch >= 0) AND (ch < 256)
+          scr ! BYTE ch
+        TRUE
+          SKIP
+  :
+  --}}}
+  --{{{  PROC newline ()
+  PROC newline ()
+    SEQ
+      out.nl (scr)
+      column.count := 0
+  :
+  --}}}
+  --{{{  PROC writes (VAL []BYTE s)
+  PROC writes (VAL []BYTE s)
+    out.string (s, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC in (INT ch)
+  PROC in (INT ch)
+    --all input goes via this proc, but its only ever used to wait
+    SEQ
+      --newline ()
+      --writes ("(Press any key) ")
+      -- keyboard ? ch
+      ch := ch  -- stop any warning not used
+      newline ()
+  :
+  --}}}
+  --{{{  [INLINE] PROC writen (VAL INT n)
+  PROC writen (VAL INT n)
+    out.number (n, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC writehex (VAL INT value, length)
+  PROC writehex (VAL INT value, length)
+    --VAL hex IS "0123456789ABCDEF" :
+    --SEQ
+    --  SEQ i = 1 FOR length
+    --    out (INT hex [(value >> ((length - i) * 4)) /\ #F] )
+    --  out (-2)
+    out.hex.int (value, length, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC beep ()
+  PROC beep ()
+    out (7)
+  :
+  --}}}
+  --{{{  PROC failed.test  (VAL []BYTE where)
+  PROC failed.test(VAL []BYTE where)
+    SEQ
+      beep()
+      writes(where)
+      IF
+        display.names
+          newline()
+        TRUE
+          SKIP
+      writes (" Failed: ")
+  :
+  --}}}
+  --{{{  PROC completed.ok (VAL []BYTE where)
+  INT error.count, passed.count:
+  PROC completed.ok (VAL []BYTE where)
+    SEQ
+      passed.count := passed.count + 1
+      IF
+        display.names
+          SEQ
+            writes (where)
+            IF
+              column.count < no.of.columns
+                VAL spaces IS "            " :
+                VAL INT n.spaces IS width.of.column - (SIZE where):
+                SEQ
+                  IF
+                    n.spaces > 0
+                      writes([spaces FROM 0 FOR width.of.column - (SIZE where)])
+                      --SEQ i = 0 FOR width.of.column - (SIZE where)
+                      --  out ('*s' (INT))
+                    TRUE
+                      out ('*s' (INT))
+                  column.count := column.count + 1
+              TRUE
+                newline ()
+        TRUE
+          SKIP
+  :
+  --}}}
+  INT any.integer.name :
+  VAL []BYTE useless.name RETYPES any.integer.name :
+  VAL nibbles.per.INT IS (SIZE useless.name) * 2 :
+  --{{{  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+    INT key :
+    PROC writebool (VAL BOOL b)
+      IF
+        b
+          writes ("TRUE")
+        TRUE
+          writes ("FALSE")
+    :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writebool (val1)
+            writes ("  ")
+            writebool (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 2)
+            writes ("  ")
+            writehex (INT val2, 2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (val1, nibbles.per.INT)
+            writes ("  ")
+            writehex (val2, nibbles.per.INT)
+            writes ("  ")
+            writen (val1)
+            writes ("  ")
+            writen (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  --INLINE PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  -- If this is inline, every invocation creates an abbreviation
+  -- VAL test.type IS "..." :
+  -- and this makes the map file huge!
+  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+    check.INT (val1, val2, test.type)
+    --{{{  COMMENT
+    --IF
+      --val1 = val2
+        --check.INT (val1, val2, test.type)
+      --TRUE
+        --out.string ("!!! FAILED in check !!!*n*c", 0, out)
+    --}}}
+  :
+  --}}}
+  --{{{  PROC init (VAL []BYTE name, description)
+  [20]BYTE saved.name :
+  INT saved.name.len :
+  PROC init (VAL []BYTE name, description)
+    SEQ
+      timer ? start.time          -- DCW
+      writes (name)
+      writes ("  --  ")
+      writes (description)
+      newline ()
+      error.count := 0
+      passed.count := 0
+      saved.name.len := SIZE name
+      [saved.name FROM 0 FOR saved.name.len] := name
+  :
+  --}}}
+  --{{{  PROC title (VAL []BYTE string)
+  PROC title (VAL []BYTE string)
+    IF
+      display.titles
+        SEQ
+          IF
+            display.names
+              newline ()
+            TRUE
+              SKIP
+            TRUE
+              STOP
+          writes(string)
+          newline()
+      TRUE
+        SKIP
+      TRUE
+        STOP
+  :
+  --}}}
+  --{{{  PROC finish ()
+  PROC finish ()
+    SEQ
+      IF
+        display.names
+          newline ()
+        TRUE
+          SKIP
+      IF
+        error.count > 0
+          SEQ
+            writes ("^^^ Failed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": ")
+            writen (error.count)
+            writes (" errors detected, ")
+        TRUE
+          SEQ
+            writes ("^^^ Passed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": All ")
+      writen (passed.count)
+      writes (" tests passed OK")
+      timer ? end.time            -- DCW
+      newline ()
+      writes ("Time = ")
+      writen (end.time - start.time)
+      writes (" ticks")
+      newline ()
+  :
+  --}}}
+  --{{{  identity functions
+  -- These are designed to help stop the optimiser constant propagating.
+  -- If it manages to defeat these, make them more complex, as long as they
+  -- still return the identity function.
+  BOOL   FUNCTION id.BOOL   (VAL BOOL   x)
+    BOOL res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  BYTE   FUNCTION id.BYTE   (VAL BYTE   x)
+    BYTE   res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id.INT    (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT16  FUNCTION id.INT16  (VAL INT16  x)
+    INT16  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT32  FUNCTION id.INT32  (VAL INT32  x)
+    INT32  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT64  FUNCTION id.INT64  (VAL INT64  x)
+    INT64  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL32 FUNCTION id.REAL32 (VAL REAL32 x)
+    REAL32 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL64 FUNCTION id.REAL64 (VAL REAL64 x)
+    REAL64 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id        (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  --}}}
+  --}}}
+  --{{{  cgreal.occ
+  -- version control marker $Id: cgreal.occ,v 1.1 1995/10/10 13:03:56 djb1 Exp $
+  --{{{  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 4)
+            writes ("  ")
+            writehex (INT val2, 4)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+    PROC print.value(VAL []INT x)
+      SEQ i = 0 FOR SIZE x
+        writehex (x [((SIZE x) - 1) - i], nibbles.per.INT)
+    :
+    INT key :
+    SEQ
+      failed.test(test.type)
+      print.value(x1)
+      writes("  ")
+      print.value(x2)
+      in (key)
+      error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  old out.REAL32 and out.REAL64
+  --PROC outREAL32 (VAL REAL32 Real)
+  --  SKIP
+  --:
+  --PROC outREAL64 (VAL REAL64 real)
+  --  SKIP
+  --:
+  --}}}
+  --{{{  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+    INT key:
+    IF
+      (SIZE val1) <> (SIZE val2)
+        SEQ
+          failed.test (test.type)
+          writes (" string size mismatch")
+          in (key)
+          error.count := error.count + 1
+      IF i = 0 FOR SIZE val1
+        val1[i] <> val2[i]
+          SEQ
+            failed.test (test.type)
+            writes (" strings not equal")
+            in (key)
+            error.count := error.count + 1
+      TRUE
+        completed.ok (test.type)
+  :
+  --}}}
+  --}}}
+  --{{{  replicated PAR
+  --[20]CHAN OF INT N11,N22:
+  INT NL1, NL2:
+  --{{{  P1
+  PROC P1 ()
+    [20]INT X,Y :
+    [SIZE X]CHAN OF INT N11,N22:
+    SEQ
+      PAR i = 0 FOR SIZE X
+        PAR
+          SEQ
+            N11[i] ! 0
+            N22[i] ? X[i]
+          SEQ
+            N11[i] ? Y[i]
+            N22[i] ! 1
+      check( X[9], 1, "P1")
+      check( Y[9], 0, "P2")
+  :
+  --}}}
+  --{{{  P2
+  PROC P2 ()
+    [20]INT X, Y:
+    INT Z:
+    SEQ
+      [SIZE X]CHAN OF INT N11,N22:
+      PAR
+        Z := 2
+        PAR
+          PAR i = 0 FOR SIZE X
+            PAR
+              SEQ
+                N11[i] ! 1
+                N22[i] ? X[i]
+              SEQ
+                N11[i] ? Y[i]
+                N22[i] ! 0
+      check( X[11], 0, "P3")
+      check( Y[12], 1, "P4")
+      check( Z, 2, "P5")
+  :
+  --}}}
+  --{{{  P3
+  PROC P3 ()
+    [50]CHAN OF BYTE X:
+    [50]BYTE A:
+    SEQ
+      PAR
+        PAR I = 0 FOR 4
+          X[I] ! BYTE I
+        PAR I = 0 FOR 4
+          X[I] ? A[I]
+      SEQ I = 0 FOR 4
+        check(INT A[I], I, "P6")
+  :
+  --}}}
+  --{{{  P4
+  PROC P4 ()
+    [50]CHAN OF INT L:
+    [50]INT X:
+    INT Y,Z:
+    SEQ
+      PAR
+        Y := 0
+        Z := 42
+        PAR I = 2 FOR 4
+          L[I] ! I
+        SEQ I = 0 FOR 4
+          ALT I = 0 FOR 20
+            L[I] ? X[I]
+              SEQ
+      check( X[2], 2, "P7")
+      check( X[3], 3, "P8")
+      check( X[4], 4, "P9")
+      check( X[5], 5, "P10")
+      check( Y, 0, "P11")
+      check( Z, 42, "P12")
+  :
+  --}}}
+  --{{{  P5
+  PROC P5 ()
+    [50]CHAN OF INT L:
+    INT X, Y, Z, XX, YY, ZZ:
+    SEQ
+      PAR
+        PAR I = 10 FOR 3
+          PAR
+            L[I + 10] ! I * I
+            L[I] ! I
+        L[20] ? XX
+        L[21] ? YY
+        L[22] ? ZZ
+        L[10] ? X
+        L[11] ? Y
+        L[12] ? Z
+      check( XX, 100, "P13")
+      check( YY, 121, "P14")
+      check( ZZ, 144, "P15")
+      check( X, 10, "P16")
+      check( Y, 11, "P17")
+      check( Z, 12, "P18")
+  :
+  --}}}
+  --{{{  P6
+  PROC P6 ()
+    INT X, Y, Z:
+    BOOL bonnie, clyde:
+    SEQ
+      NL1 := 0
+      NL2 := 1
+      X := 2
+      Y := 3
+      Z := 4
+      [10]INT X, Y, Z:
+      SEQ
+        PAR I = 78 FOR 10
+          PAR
+            SEQ
+              IF
+                I = 80
+                  SEQ
+                    IF
+                      NL1 = 0
+                        bonnie := TRUE
+                      TRUE
+                        bonnie := FALSE
+                    IF
+                      NL2 = 1
+                        clyde := TRUE
+                      TRUE
+                        clyde := FALSE
+                TRUE
+                  SKIP
+            SEQ
+              X[I-78] := 5
+              Y[I-78] := 6
+              Z[I-78] := 7
+        check (INT bonnie, INT TRUE, "P19")
+        check (INT clyde, INT TRUE, "P20")
+        check (X[3], 5, "P21")
+        check (Y[2], 6, "P22")
+        check (Z[1], 7, "P23")
+      SEQ
+        PAR I = 9999 FOR 2
+          SKIP
+        check( X, 2, "P24")
+        check( Y, 3, "P25")
+        check( Z, 4, "P26")
+  :
+  --}}}
+  --{{{  P7
+  PROC P7 ()
+    INT X, Y:
+    BOOL zap, bonk:
+    SEQ
+      PAR I = 0 FOR 1
+        PAR
+          SEQ
+            NL1 := 0
+            NL2 := 1
+            --{{{  PROC P7
+            PROC P7 (VAL INT X, Y)
+              SEQ
+                IF
+                  X = NL1
+                    zap := TRUE
+                  TRUE
+                    zap := FALSE
+                IF
+                  Y = NL2
+                    bonk := TRUE
+                  TRUE
+                    bonk := FALSE
+            :
+            --}}}
+            P7( NL1, NL2)
+          PAR I = 54 FOR 1
+            SEQ
+              X := 0
+              Y := 1
+      check(INT zap, INT TRUE, "P27")
+      check(INT bonk, INT TRUE, "P28")
+      check( X, 0, "P29")
+      check( Y, 1, "P30")
+  :
+  --}}}
+  --{{{  P8
+  PROC P8 ()
+    INT A, B:
+    [10]CHAN OF INT X:
+    [10]CHAN OF INT Y:
+    --{{{  PROC link (CHAN OF INT in, out)
+    PROC link (CHAN OF INT in, out)
+      INT X:
+      SEQ
+        in ? X
+        out ! X
+    :
+    --}}}
+    SEQ
+      PAR
+        Y[2] ! 69
+        X[0] ! 42
+        PAR I = 0 FOR 4
+          link (X[I], X[I+1])
+        PAR I = 2 FOR 3
+          link (Y[I], Y[I+1])
+        X[4] ? B
+        Y[5] ? A
+      check (B, 42, "P31")
+      check (A, 69, "P32")
+  :
+  --}}}
+  --}}}
+  SEQ
+    init ("CG test 6", "PAR and replicated PAR")
+    --{{{  testing PAR
+    title ("Testing PAR and replicated PAR")
+    P1  ()
+    P2  ()
+    P3  ()
+    P4  ()
+    P5  ()
+    P6  ()
+    P7  ()
+    P8  ()
+    --}}}
+    --{{{  VSP inside repl
+    PROC vsp.inside.repl()
+      VAL n IS 10 :
+      [n]INT b :
+      [n]INT c :
+      [2][3][n]INT res :
+      SEQ
+        b := [0,1,2,3,4,5,6,7,8,9]
+        SEQ j = 0 FOR SIZE b
+          c[j] := b[j] + 10
+        PAR i = 0 FOR 2
+          [n]INT d :
+          SEQ
+            d := b
+            d := c
+            SEQ j = 0 FOR SIZE d
+              d[j] := j+100
+            PAR k = 0 FOR 2
+              [n]INT d :
+              SEQ
+                d := b
+                d := c
+                SEQ j = 0 FOR SIZE d
+                  d[j] := (j+200) + k
+                res[i][k] := d
+            res[i][2] := d
+        SEQ i = 0 FOR SIZE res
+          SEQ j = 0 FOR n
+            SEQ
+              check(res[i][2][j], j+100, "P32a")
+              SEQ k = 0 FOR 2
+                check(res[i][k][j], (j+200)+k, "P32b")
+        SEQ j = 0 FOR SIZE b
+          SEQ
+            check(b[j], j, "P32c")
+            check(c[j], j+10, "P32d")
+    :
+    vsp.inside.repl()
+    --}}}
+    --{{{  bug 266
+    PROC bug.266 ()
+      -- bug 266 in buglist
+      CHAN OF REAL32 c :
+      PAR
+        REAL32 x :
+        SEQ
+          x := 49.0(REAL32)
+          c ! x + x
+          c ! SQRT (x)
+        REAL32 y :
+        SEQ
+          c ? y
+          check (INT ROUND y, 98, "B266a")
+          c ? y
+          check (INT ROUND y, 7, "B266b")
+    :
+    bug.266 ()
+    --}}}
+    --{{{  bug 266c
+    PROC bug.266c ()
+      -- bug 266 in buglist
+      PROC output(CHAN OF REAL32 c)
+        REAL32 x :
+        SEQ
+          x := 49.0(REAL32)
+          c ! x + x
+          c ! SQRT (x)
+      :
+      CHAN OF REAL32 c :
+      PAR
+        output(c)
+        REAL32 y :
+        SEQ
+          c ? y
+          check (INT ROUND y, 98, "B266c")
+          c ? y
+          check (INT ROUND y, 7, "B266d")
+    :
+    bug.266c ()
+    --}}}
+    --{{{  bug 268
+    PROC bug.268 ()
+      -- bug 268 in buglist
+      CHAN OF INT16::[]BYTE c :
+      CHAN OF INT::[][3]BYTE d :
+      PAR
+        BYTE b :
+        SEQ
+          b := 'b'
+          c ! 2(INT16)::['a', b]
+          d ! 2 :: [['a', b, 'c'], [BYTE ((INT b) + 1), 'a', b]]
+        [2]BYTE b1 :
+        [2][3]BYTE b2 :
+        INT16 i16 :
+        INT i :
+        SEQ
+          c ? i16 :: b1
+          check (INT b1[0], INT 'a', "B268a")
+          check (INT b1[1], INT 'b', "B268b")
+          d ? i :: b2
+          check (INT b2[0][0], INT 'a', "B268c")
+          check (INT b2[0][1], INT 'b', "B268d")
+          check (INT b2[0][2], INT 'c', "B268e")
+          check (INT b2[1][0], INT 'c', "B268f")
+          check (INT b2[1][1], INT 'a', "B268g")
+          check (INT b2[1][2], INT 'b', "B268h")
+    :
+    bug.268 ()
+    --}}}
+    --{{{  bug 487
+    PROC bug.487()
+      PROC pipe(CHAN OF INT in, out)
+        INT x :
+        SEQ
+          in ? x
+          out ! x
+      :
+      [4]CHAN OF INT c :
+      PAR
+        c[0] ! 42
+        PAR i = 0 FOR 3
+          pipe(c[i], c[i+1])
+        INT x :
+        SEQ
+          c[3] ? x
+          check(x, 42, "B487A")
+    :
+    bug.487()
+    --}}}
+    --{{{  bug 493
+    PROC bug.493()
+      INT x :
+      SEQ
+        x := 88
+        PAR i = 0 FOR 0
+          INT y :
+          y := 99
+        check(x, 88, "B493a")
+    :
+    bug.493()
+    --}}}
+    --{{{  bug 746
+    PROC bug.746()
+      [10]INT32 a, b :
+      SEQ
+        SEQ i = 0 FOR 10
+          a[i], b[i] := INT32 (-i), INT32 i
+        PAR i = 0 FOR 1
+          INT x, y, xx, yy, xxx, yyy :
+          SEQ
+            x := 1
+            y := 2
+            xx, yy := xxx, yyy
+            VAL []BYTE retype RETYPES [b FROM x FOR y] :
+            SEQ
+              check(SIZE retype, 8, "B746A")
+        SEQ i = 0 FOR 10
+          check(INT a[i], -i, "B746B")
+    :
+    bug.746()
+    --}}}
+    --{{{  bug 1026
+    PROC bug.1026()
+      INT x :
+      SEQ
+        x := 99
+        PAR i = 0 FOR 1
+          [10]INT a :
+          PROC q ()
+            [10]INT b :
+            INT bb :
+            SEQ
+              bb := 0
+              bb := b[bb]
+              check(i, 0, "B1026a")
+              check(x, 99, "B1026b")
+          :
+          SEQ
+            SEQ j = 0 FOR SIZE a
+              a[j] := 1010 + j
+            q ()
+    :
+    bug.1026()
+    --}}}
+    --{{{  bug 1028
+    PROC bug.1028 ()
+      INT x :
+      SEQ
+        x := 12345
+        PAR
+          INT z, zz, zzz, zzzz :
+          PAR i = 0 FOR 1
+            PROC q ()
+              INT y :
+              SEQ
+                y, z := x, zz
+                check(y, 12345, "B1028A")
+                check(x, 12345, "B1028B")
+            :
+            SEQ
+              z, zzz, zz, zzzz := 1, 2, 3, 4
+              q ()
+              check(x, 12345, "B1028C")
+          INT a, b, c :
+          a, b, c := 1, 2, 3
+    :
+    bug.1028()
+    --}}}
+    --{{{  bug 1344
+    PROC bug.1344()
+      INT x :
+      SEQ
+        x := -888
+        CHAN OF INT c :
+        PRI PAR
+          c ! 67
+          c ? x
+        check(x, 67, "B1344a")
+    :
+    bug.1344()
+    --}}}
+    --{{{  bug 1365
+    PROC bug.1365()
+      INT a, b :
+      SEQ
+        a, b := 88, MOSTNEG INT
+        PRI PAR
+          INT x, y, z :
+          SEQ
+            a := 27
+            x := 27
+            y := a + x
+            z := a - x
+            a := (y + z) / 2
+          INT i, j :
+          SEQ
+            i, j := b, b
+        check(a, 27, "B1365a")
+        check(b, MOSTNEG INT, "B1365b")
+    :
+    bug.1365()
+    --}}}
+    --{{{  bug TS/2030
+    PROC bug.TS.2030()
+      SEQ
+        PAR
+        check(1, 1, "B2030a")
+    :
+    bug.TS.2030()
+    --}}}
+    --{{{  bug TS/2066
+    PROC bug.TS.2066()
+      VAL n0 IS 2 :
+      VAL n1 IS 3 :
+      VAL n2 IS 4 :
+      [n0][n1][n2]INT array :
+      --{{{  PROC init initialise the array
+      PROC init()
+        SEQ i = 0 FOR n0
+          SEQ j = 0 FOR n1
+            SEQ k = 0 FOR n2
+              array[i][j][k] := 888
+      :
+      --}}}
+      --{{{  PROC test test for correct values
+      PROC test(VAL []BYTE msg)
+        SEQ i = 0 FOR n0
+          SEQ j = 0 FOR n1
+            SEQ k = 0 FOR n2
+              check(array[i][j][k], (i + j) + k, msg)
+      :
+      --}}}
+      SEQ
+        init()
+        --{{{  run the test
+        PROTOCOL data IS INT; INT; INT :: []BYTE :
+        CHAN OF data info :
+        CHAN OF INT stop :
+        PAR
+          --{{{  PROC local.check
+          PROC local.check(VAL INT x, y, VAL []BYTE msg)
+            --info ! x; y; SIZE msg :: msg
+            ASSERT(x = y)
+          :
+          --}}}
+          SEQ
+            --{{{  big replicated PAR
+            PAR i = 0 FOR n0
+              VAL i0 IS i :
+              SEQ
+                local.check(i0, i, "B2066a")
+                PAR j = 0 FOR n1
+                  VAL j0 IS j :
+                  VAL i1 IS i :
+                  VAL i2 IS i0 :
+                  SEQ
+                    local.check(j0, j, "B2066a")
+                    local.check(i0, i, "B2066b")
+                    local.check(i1, i, "B2066c")
+                    PAR k = 0 FOR n2
+                      VAL k0 IS k :
+                      VAL j1 IS j :
+                      VAL j2 IS j0 :
+                      VAL i3 IS i :
+                      VAL i4 IS i0 :
+                      VAL i5 IS i1 :
+                      VAL i6 IS i2 :
+                      SEQ
+                        local.check(k0, k, "B2066d")
+                        local.check(j1, j, "B2066e")
+                        local.check(j2, j, "B2066f")
+                        local.check(i3, i, "B2066g")
+                        local.check(i4, i, "B2066h")
+                        local.check(i5, i, "B2066i")
+                        local.check(i6, i, "B2066j")
+                        array[i6][j2][k0] := (i + j) + k
+            --}}}
+            stop ! 0
+          --{{{  listen for errors
+          BOOL going :
+          SEQ
+            going := TRUE
+            WHILE going
+              ALT
+                INT x :
+                stop ? x
+                  going := FALSE
+                INT x, y, len :
+                [20]BYTE buff :
+                info ? x; y; len :: buff
+                  check(x, y, [buff FROM 0 FOR len])
+          --}}}
+        --}}}
+        test("B2066k")
+        init()
+        --{{{  another test
+        CHAN OF INT c :
+        PAR
+          SEQ
+            PAR i = 0 FOR n0
+              VAL ii IS i :
+              SEQ j = 0 FOR n1
+                SEQ k = 0 FOR n2
+                  array[ii][j][k] := (i + j) + k
+            c ! 99
+          INT any :
+          c ? any
+        --}}}
+        test("B2066l")
+    :
+    bug.TS.2066()
+    --}}}
+    --{{{  bug INSdi01935
+    PROC bug.INSdi01935()
+      PROC disp.box(CHAN OF INT in, CHAN OF INT out, VAL INT i,
+                VAL [][]BYTE level.text,       -- levels
+                VAL [][]BYTE state.text)       -- extra states
+        INT x :
+        SEQ
+          in ? x
+          x := x + (((SIZE level.text) + (SIZE level.text[0])) +
+                    ((SIZE state.text) + (SIZE state.text[0])))
+          out ! x + i
+      :
+      VAL ISTREAMS IS 4 :
+      [ISTREAMS+1]CHAN OF INT ins :
+      PAR
+        ins[0] ! 0
+        PAR istream = 0 FOR ISTREAMS
+          disp.box(ins[istream], ins[istream+1], istream,
+              ["asnhas","aaaxxx"], ["abc", "def"])
+        INT x :
+        SEQ
+          ins[ISTREAMS] ? x
+          check(x, 58, "INSdi01935")
+    :
+    bug.INSdi01935()
+    --}}}
+    --{{{  bug INSdi01941
+    PROC bug.INSdi01941()
+      INT sum1, sum2, sum3 :
+      SEQ
+        PAR
+          SEQ
+            sum1 := 0
+            SEQ j1 = 0 FOR 99
+              sum1 := sum1 + j1
+          PRI PAR
+            SEQ
+              sum2 := 0
+              SEQ j2 = 0 FOR 100
+                sum2 := sum2 + j2
+            SKIP
+          SEQ
+            sum3 := 0
+            SEQ j3 = 0 FOR 101
+              sum3 := sum3 + j3
+        check(sum1, 4851, "di1941a")
+        check(sum2, 4950, "di1941b")
+        check(sum3, 5050, "di1941c")
+    :
+    bug.INSdi01941()
+    --}}}
+    --{{{  bug INSdi03539
+    PROC bug.INSdi03539()
+      [10]BOOL a :
+      SEQ
+        SEQ i = 0 FOR SIZE a
+          a[i] := id.BOOL(FALSE)
+        PAR i = 0 FOR SIZE a
+          IF
+            i = 5
+              a[i] := id.BOOL(TRUE)
+            TRUE
+              SKIP
+        check.BOOL(a[id(5)], TRUE, "di3539a")
+        a[5] := id.BOOL(FALSE)
+        SEQ i = 0 FOR SIZE a
+          check.BOOL(a[i], FALSE, "di3539b")
+    :
+    bug.INSdi03539()
+    --}}}
+    finish ()
+:

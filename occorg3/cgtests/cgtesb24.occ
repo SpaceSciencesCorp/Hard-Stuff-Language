@@ -1,0 +1,3934 @@
+-- version control marker $Id: cgtest24.occ,v 1.5 1995/10/10 12:58:36 djb1 Exp $
+-- Function result combinations
+PROC cgtest24 (CHAN OF BYTE keyb, scr, err)
+  -- version control marker $Id: cgmain.occ,v 3.9 1997/03/06 16:36:15 dcw Exp $
+  --{{{  cglib.occ
+  -- version control marker $Id: cglib.occ,v 1.6 1997/01/30 12:31:09 dcw Exp $
+  --
+  -- Cut-down version of the output utilities from the course library
+  --{{{  some constants
+  VAL BYTE BELL IS 7(BYTE):
+  VAL BYTE NULL IS 0(BYTE):
+  VAL BYTE BACK IS 8(BYTE):
+  VAL BYTE DELETE IS 127(BYTE):
+  --}}}
+  --{{{  out stuff
+  PROC out.repeat (VAL BYTE ch,  VAL INT n,  CHAN OF BYTE out)
+    --{{{
+    IF
+      n > 0
+        SEQ i = 0 FOR n
+          SEQ
+            out ! ch
+      TRUE
+        SKIP
+    --}}}
+  :
+  PROC out.ch (VAL BYTE ch,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    SEQ
+      out.repeat (' ', field - 1, out)
+      out ! ch
+    --}}}
+  :
+  PROC out.ch.funny (VAL BYTE ch,  VAL INT field,  CHAN OF [1]BYTE out)
+    --{{{
+    SEQ
+      VAL [1]BYTE thing RETYPES ch:
+      out ! thing
+    --}}}
+  :
+  PROC out.nl (CHAN OF BYTE out)
+    SEQ
+      out ! '*c'
+      out ! '*n'
+  :
+  PROC in.ch (BYTE ch, CHAN OF BYTE in)
+    --{{{
+    in ? ch
+    --}}}
+  :
+  PROC out.bell (CHAN OF BYTE out)
+    --{{{
+    out.ch (BELL, 1, out)
+    --}}}
+  :
+  PROC out.string (VAL []BYTE s,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL length IS SIZE s:
+    SEQ
+      out.repeat (' ', field - length, out)
+      SEQ i = 0 FOR length
+        SEQ
+          out ! s [i]
+    --}}}
+  :
+  PROC out.number (VAL INT n,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL max.digits IS 20:
+    [max.digits]INT D:
+    INT x, i:
+    IF
+      (n = 0)
+        --{{{  zero
+        SEQ
+          IF
+            (1 < field)
+              out.repeat (' ', field - 1, out)
+            (TRUE)
+              SKIP
+          out ! '0'
+        --}}}
+      (TRUE)
+        SEQ
+          i := 0     --  bring this line up here,   Vedat
+          --{{{  check negative
+          IF
+            (n < 0)
+              SEQ        -- this one can handle MOSTNEG INT as well
+                D [i] := -(n\10)
+                x := -(n/10)
+                i:= i + 1
+            (TRUE)         -- (n > 0)
+              x := n
+          --}}}
+          --{{{  decompose
+          -- i := 0   -- this line goes up in order to handle MOSTNEG INT
+          WHILE x > 0
+            SEQ
+              D [i] := x\10
+              x := x/10
+              i := i + 1
+          --}}}
+          --{{{  pad
+          IF
+            (n > 0)
+              out.repeat (' ', field - i, out)
+            (TRUE)
+              SEQ
+                out.repeat (' ', (field - 1) - i, out)
+                out ! '-'
+          --}}}
+          --{{{  output
+          WHILE i > 0
+            SEQ
+              i := i - 1
+              out ! BYTE (D [i] + (INT '0'))
+          --}}}
+    --}}}
+  :
+  PROC out.bool (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      (b = TRUE)
+        out.ch ('1', field, out)
+      (b = FALSE)
+        out.ch ('0', field, out)
+      (TRUE)
+        out.ch ('.', field, out)
+    --}}}
+  :
+  PROC out.yes.no (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      b
+        out.string ("yes", field, out)
+      TRUE
+        out.string ("no", field, out)
+    --}}}
+  :
+  PROC out.hex.int (VAL INT x, l, CHAN OF BYTE out)
+    --{{{  body of cg.write.hex.int
+    -- this procedure ignores the field length parameter 'l'
+    -- independent of endianism - DCW
+    VAL INT nibble          IS #F:
+    VAL INT hex.dig.per.int IS 8:
+    VAL INT bit.per.hex.dig IS 4:
+    VAL hex.dig             IS "0123456789ABCDEF":
+    INT digit, mask, shift:
+    [12]BYTE s:
+    SEQ
+      s[0]:= '#'
+      SEQ i = 1 FOR hex.dig.per.int
+        SEQ
+          shift :=  (hex.dig.per.int - i) * bit.per.hex.dig
+          digit := (x >> shift) /\ nibble
+          s[i]:= hex.dig[digit]
+      out.string ([s FROM 0 FOR (hex.dig.per.int + 1)], 0, out)
+    --}}}
+  :
+  PROC black.hole (CHAN OF BYTE in)
+    --{{{
+    WHILE TRUE
+      BYTE any:
+      in ? any
+    --}}}
+  :
+  --}}}
+  --}}}
+  VAL display.names  IS TRUE :
+  --VAL display.names  IS TRUE :
+  --VAL display.titles IS display.names :
+  VAL display.titles IS TRUE :
+  VAL no.of.columns   IS 6 :
+  VAL width.of.column IS 10 :
+  TIMER timer:                    -- DCW
+  INT start.time, end.time:       -- DCW
+  INT column.count :
+  --{{{  [INLINE] PROC out (VAL INT ch)
+  PROC out (VAL INT ch)
+    SEQ
+      IF
+        (ch >= 0) AND (ch < 256)
+          scr ! BYTE ch
+        TRUE
+          SKIP
+  :
+  --}}}
+  --{{{  PROC newline ()
+  PROC newline ()
+    SEQ
+      out.nl (scr)
+      column.count := 0
+  :
+  --}}}
+  --{{{  PROC writes (VAL []BYTE s)
+  PROC writes (VAL []BYTE s)
+    out.string (s, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC in (INT ch)
+  PROC in (INT ch)
+    --all input goes via this proc, but its only ever used to wait
+    SEQ
+      --newline ()
+      --writes ("(Press any key) ")
+      -- keyboard ? ch
+      ch := ch  -- stop any warning not used
+      newline ()
+  :
+  --}}}
+  --{{{  [INLINE] PROC writen (VAL INT n)
+  PROC writen (VAL INT n)
+    out.number (n, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC writehex (VAL INT value, length)
+  PROC writehex (VAL INT value, length)
+    --VAL hex IS "0123456789ABCDEF" :
+    --SEQ
+    --  SEQ i = 1 FOR length
+    --    out (INT hex [(value >> ((length - i) * 4)) /\ #F] )
+    --  out (-2)
+    out.hex.int (value, length, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC beep ()
+  PROC beep ()
+    out (7)
+  :
+  --}}}
+  --{{{  PROC failed.test  (VAL []BYTE where)
+  PROC failed.test(VAL []BYTE where)
+    SEQ
+      beep()
+      writes(where)
+      IF
+        display.names
+          newline()
+        TRUE
+          SKIP
+      writes (" Failed: ")
+  :
+  --}}}
+  --{{{  PROC completed.ok (VAL []BYTE where)
+  INT error.count, passed.count:
+  PROC completed.ok (VAL []BYTE where)
+    SEQ
+      passed.count := passed.count + 1
+      IF
+        display.names
+          SEQ
+            writes (where)
+            IF
+              column.count < no.of.columns
+                VAL spaces IS "            " :
+                VAL INT n.spaces IS width.of.column - (SIZE where):
+                SEQ
+                  IF
+                    n.spaces > 0
+                      writes([spaces FROM 0 FOR width.of.column - (SIZE where)])
+                      --SEQ i = 0 FOR width.of.column - (SIZE where)
+                      --  out ('*s' (INT))
+                    TRUE
+                      out ('*s' (INT))
+                  column.count := column.count + 1
+              TRUE
+                newline ()
+        TRUE
+          SKIP
+  :
+  --}}}
+  INT any.integer.name :
+  VAL []BYTE useless.name RETYPES any.integer.name :
+  VAL nibbles.per.INT IS (SIZE useless.name) * 2 :
+  --{{{  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+    INT key :
+    PROC writebool (VAL BOOL b)
+      IF
+        b
+          writes ("TRUE")
+        TRUE
+          writes ("FALSE")
+    :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writebool (val1)
+            writes ("  ")
+            writebool (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 2)
+            writes ("  ")
+            writehex (INT val2, 2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (val1, nibbles.per.INT)
+            writes ("  ")
+            writehex (val2, nibbles.per.INT)
+            writes ("  ")
+            writen (val1)
+            writes ("  ")
+            writen (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  --INLINE PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  -- If this is inline, every invocation creates an abbreviation
+  -- VAL test.type IS "..." :
+  -- and this makes the map file huge!
+  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+    check.INT (val1, val2, test.type)
+    --{{{  COMMENT
+    --IF
+      --val1 = val2
+        --check.INT (val1, val2, test.type)
+      --TRUE
+        --out.string ("!!! FAILED in check !!!*n*c", 0, out)
+    --}}}
+  :
+  --}}}
+  --{{{  PROC init (VAL []BYTE name, description)
+  [20]BYTE saved.name :
+  INT saved.name.len :
+  PROC init (VAL []BYTE name, description)
+    SEQ
+      timer ? start.time          -- DCW
+      writes (name)
+      writes ("  --  ")
+      writes (description)
+      newline ()
+      error.count := 0
+      passed.count := 0
+      saved.name.len := SIZE name
+      [saved.name FROM 0 FOR saved.name.len] := name
+  :
+  --}}}
+  --{{{  PROC title (VAL []BYTE string)
+  PROC title (VAL []BYTE string)
+    IF
+      display.titles
+        SEQ
+          IF
+            display.names
+              newline ()
+            TRUE
+              SKIP
+            TRUE
+              STOP
+          writes(string)
+          newline()
+      TRUE
+        SKIP
+      TRUE
+        STOP
+  :
+  --}}}
+  --{{{  PROC finish ()
+  PROC finish ()
+    SEQ
+      IF
+        display.names
+          newline ()
+        TRUE
+          SKIP
+      IF
+        error.count > 0
+          SEQ
+            writes ("^^^ Failed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": ")
+            writen (error.count)
+            writes (" errors detected, ")
+        TRUE
+          SEQ
+            writes ("^^^ Passed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": All ")
+      writen (passed.count)
+      writes (" tests passed OK")
+      timer ? end.time            -- DCW
+      newline ()
+      writes ("Time = ")
+      writen (end.time - start.time)
+      writes (" ticks")
+      newline ()
+  :
+  --}}}
+  --{{{  identity functions
+  -- These are designed to help stop the optimiser constant propagating.
+  -- If it manages to defeat these, make them more complex, as long as they
+  -- still return the identity function.
+  BOOL   FUNCTION id.BOOL   (VAL BOOL   x)
+    BOOL res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  BYTE   FUNCTION id.BYTE   (VAL BYTE   x)
+    BYTE   res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id.INT    (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT16  FUNCTION id.INT16  (VAL INT16  x)
+    INT16  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT32  FUNCTION id.INT32  (VAL INT32  x)
+    INT32  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT64  FUNCTION id.INT64  (VAL INT64  x)
+    INT64  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL32 FUNCTION id.REAL32 (VAL REAL32 x)
+    REAL32 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL64 FUNCTION id.REAL64 (VAL REAL64 x)
+    REAL64 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id        (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  --}}}
+  -- version control marker $Id: cgreal.occ,v 1.1 1995/10/10 13:03:56 djb1 Exp $
+  --{{{  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 4)
+            writes ("  ")
+            writehex (INT val2, 4)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+    PROC print.value(VAL []INT x)
+      SEQ i = 0 FOR SIZE x
+        writehex (x [((SIZE x) - 1) - i], nibbles.per.INT)
+    :
+    INT key :
+    SEQ
+      failed.test(test.type)
+      print.value(x1)
+      writes("  ")
+      print.value(x2)
+      in (key)
+      error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  old out.REAL32 and out.REAL64
+  --PROC outREAL32 (VAL REAL32 Real)
+  --  SKIP
+  --:
+  --PROC outREAL64 (VAL REAL64 real)
+  --  SKIP
+  --:
+  --}}}
+  --{{{  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+    INT key:
+    IF
+      (SIZE val1) <> (SIZE val2)
+        SEQ
+          failed.test (test.type)
+          writes (" string size mismatch")
+          in (key)
+          error.count := error.count + 1
+      IF i = 0 FOR SIZE val1
+        val1[i] <> val2[i]
+          SEQ
+            failed.test (test.type)
+            writes (" strings not equal")
+            in (key)
+            error.count := error.count + 1
+      TRUE
+        completed.ok (test.type)
+  :
+  --}}}
+  SEQ
+    init ("CG test 24", "Function result combinations")
+    --{{{  multi result fns
+    --{{{  singles (8 functions)
+    BOOL  FUNCTION f.BOOL  (VAL INT x) IS x <> 27 :
+    BYTE  FUNCTION f.BYTE  (VAL INT x) IS BYTE x :
+    INT   FUNCTION f.INT   (VAL INT x) IS INT x :
+    INT16 FUNCTION f.INT16 (VAL INT x) IS INT16 x :
+    INT32 FUNCTION f.INT32 (VAL INT x) IS INT32 x :
+    INT64 FUNCTION f.INT64 (VAL INT x) IS INT64 x :
+    REAL32 FUNCTION f.REAL32(VAL INT x) IS REAL32 ROUND x :
+    REAL64 FUNCTION f.REAL64(VAL INT x) IS REAL64 ROUND x :
+    --}}}
+    --{{{  doubles (64 functions)
+    BOOL,BOOL   FUNCTION f.BOOL.BOOL   (VAL INT x) IS f.BOOL(x), f.BOOL(x) :
+    BOOL,BYTE   FUNCTION f.BOOL.BYTE   (VAL INT x) IS f.BOOL(x), f.BYTE(x) :
+    BOOL,INT    FUNCTION f.BOOL.INT    (VAL INT x) IS f.BOOL(x), f.INT (x) :
+    BOOL,INT16  FUNCTION f.BOOL.INT16  (VAL INT x) IS f.BOOL(x), f.INT16 (x) :
+    BOOL,INT32  FUNCTION f.BOOL.INT32  (VAL INT x) IS f.BOOL(x), f.INT32 (x) :
+    BOOL,INT64  FUNCTION f.BOOL.INT64  (VAL INT x) IS f.BOOL(x), f.INT64 (x) :
+    BOOL,REAL32 FUNCTION f.BOOL.REAL32 (VAL INT x) IS f.BOOL(x), f.REAL32 (x) :
+    BOOL,REAL64 FUNCTION f.BOOL.REAL64 (VAL INT x) IS f.BOOL(x), f.REAL64 (x) :
+    BYTE,BOOL   FUNCTION f.BYTE.BOOL   (VAL INT x) IS f.BYTE(x), f.BOOL(x) :
+    BYTE,BYTE   FUNCTION f.BYTE.BYTE   (VAL INT x) IS f.BYTE(x), f.BYTE(x) :
+    BYTE,INT    FUNCTION f.BYTE.INT    (VAL INT x) IS f.BYTE(x), f.INT (x) :
+    BYTE,INT16  FUNCTION f.BYTE.INT16  (VAL INT x) IS f.BYTE(x), f.INT16 (x) :
+    BYTE,INT32  FUNCTION f.BYTE.INT32  (VAL INT x) IS f.BYTE(x), f.INT32 (x) :
+    BYTE,INT64  FUNCTION f.BYTE.INT64  (VAL INT x) IS f.BYTE(x), f.INT64 (x) :
+    BYTE,REAL32 FUNCTION f.BYTE.REAL32 (VAL INT x) IS f.BYTE(x), f.REAL32 (x) :
+    BYTE,REAL64 FUNCTION f.BYTE.REAL64 (VAL INT x) IS f.BYTE(x), f.REAL64 (x) :
+    INT,BOOL   FUNCTION f.INT.BOOL   (VAL INT x) IS f.INT (x), f.BOOL(x) :
+    INT,BYTE   FUNCTION f.INT.BYTE   (VAL INT x) IS f.INT (x), f.BYTE(x) :
+    INT,INT    FUNCTION f.INT.INT    (VAL INT x) IS f.INT (x), f.INT (x) :
+    INT,INT16  FUNCTION f.INT.INT16  (VAL INT x) IS f.INT (x), f.INT16 (x) :
+    INT,INT32  FUNCTION f.INT.INT32  (VAL INT x) IS f.INT (x), f.INT32 (x) :
+    INT,INT64  FUNCTION f.INT.INT64  (VAL INT x) IS f.INT (x), f.INT64 (x) :
+    INT,REAL32 FUNCTION f.INT.REAL32 (VAL INT x) IS f.INT (x), f.REAL32 (x) :
+    INT,REAL64 FUNCTION f.INT.REAL64 (VAL INT x) IS f.INT (x), f.REAL64 (x) :
+    --{{{  All INT16
+    INT16,BOOL   FUNCTION f.INT16.BOOL   (VAL INT x) IS f.INT16 (x), f.BOOL(x) :
+    INT16,BYTE   FUNCTION f.INT16.BYTE   (VAL INT x) IS f.INT16 (x), f.BYTE(x) :
+    INT16,INT    FUNCTION f.INT16.INT    (VAL INT x) IS f.INT16 (x), f.INT (x) :
+    INT16,INT16  FUNCTION f.INT16.INT16  (VAL INT x) IS f.INT16 (x), f.INT16 (x) :
+    INT16,INT32  FUNCTION f.INT16.INT32  (VAL INT x) IS f.INT16 (x), f.INT32 (x) :
+    INT16,INT64  FUNCTION f.INT16.INT64  (VAL INT x) IS f.INT16 (x), f.INT64 (x) :
+    INT16,REAL32 FUNCTION f.INT16.REAL32 (VAL INT x) IS f.INT16 (x), f.REAL32 (x) :
+    INT16,REAL64 FUNCTION f.INT16.REAL64 (VAL INT x) IS f.INT16 (x), f.REAL64 (x) :
+    --}}}
+    INT32,BOOL   FUNCTION f.INT32.BOOL   (VAL INT x) IS f.INT32 (x), f.BOOL(x) :
+    INT32,BYTE   FUNCTION f.INT32.BYTE   (VAL INT x) IS f.INT32 (x), f.BYTE(x) :
+    INT32,INT    FUNCTION f.INT32.INT    (VAL INT x) IS f.INT32 (x), f.INT (x) :
+    INT32,INT16  FUNCTION f.INT32.INT16  (VAL INT x) IS f.INT32 (x), f.INT16 (x) :
+    INT32,INT32  FUNCTION f.INT32.INT32  (VAL INT x) IS f.INT32 (x), f.INT32 (x) :
+    INT32,INT64  FUNCTION f.INT32.INT64  (VAL INT x) IS f.INT32 (x), f.INT64 (x) :
+    INT32,REAL32 FUNCTION f.INT32.REAL32 (VAL INT x) IS f.INT32 (x), f.REAL32 (x) :
+    INT32,REAL64 FUNCTION f.INT32.REAL64 (VAL INT x) IS f.INT32 (x), f.REAL64 (x) :
+    INT64,BOOL   FUNCTION f.INT64.BOOL   (VAL INT x) IS f.INT64 (x), f.BOOL(x) :
+    INT64,BYTE   FUNCTION f.INT64.BYTE   (VAL INT x) IS f.INT64 (x), f.BYTE(x) :
+    INT64,INT    FUNCTION f.INT64.INT    (VAL INT x) IS f.INT64 (x), f.INT (x) :
+    INT64,INT16  FUNCTION f.INT64.INT16  (VAL INT x) IS f.INT64 (x), f.INT16 (x) :
+    INT64,INT32  FUNCTION f.INT64.INT32  (VAL INT x) IS f.INT64 (x), f.INT32 (x) :
+    INT64,INT64  FUNCTION f.INT64.INT64  (VAL INT x) IS f.INT64 (x), f.INT64 (x) :
+    INT64,REAL32 FUNCTION f.INT64.REAL32 (VAL INT x) IS f.INT64 (x), f.REAL32 (x) :
+    INT64,REAL64 FUNCTION f.INT64.REAL64 (VAL INT x) IS f.INT64 (x), f.REAL64 (x) :
+    REAL32,BOOL   FUNCTION f.REAL32.BOOL   (VAL INT x) IS f.REAL32 (x), f.BOOL(x) :
+    REAL32,BYTE   FUNCTION f.REAL32.BYTE   (VAL INT x) IS f.REAL32 (x), f.BYTE(x) :
+    REAL32,INT    FUNCTION f.REAL32.INT    (VAL INT x) IS f.REAL32 (x), f.INT (x) :
+    REAL32,INT16  FUNCTION f.REAL32.INT16  (VAL INT x) IS f.REAL32 (x), f.INT16 (x) :
+    REAL32,INT32  FUNCTION f.REAL32.INT32  (VAL INT x) IS f.REAL32 (x), f.INT32 (x) :
+    REAL32,INT64  FUNCTION f.REAL32.INT64  (VAL INT x) IS f.REAL32 (x), f.INT64 (x) :
+    REAL32,REAL32 FUNCTION f.REAL32.REAL32 (VAL INT x) IS f.REAL32 (x), f.REAL32 (x) :
+    REAL32,REAL64 FUNCTION f.REAL32.REAL64 (VAL INT x) IS f.REAL32 (x), f.REAL64 (x) :
+    REAL64,BOOL   FUNCTION f.REAL64.BOOL   (VAL INT x) IS f.REAL64 (x), f.BOOL(x) :
+    REAL64,BYTE   FUNCTION f.REAL64.BYTE   (VAL INT x) IS f.REAL64 (x), f.BYTE(x) :
+    REAL64,INT    FUNCTION f.REAL64.INT    (VAL INT x) IS f.REAL64 (x), f.INT (x) :
+    REAL64,INT16  FUNCTION f.REAL64.INT16  (VAL INT x) IS f.REAL64 (x), f.INT16 (x) :
+    REAL64,INT32  FUNCTION f.REAL64.INT32  (VAL INT x) IS f.REAL64 (x), f.INT32 (x) :
+    REAL64,INT64  FUNCTION f.REAL64.INT64  (VAL INT x) IS f.REAL64 (x), f.INT64 (x) :
+    REAL64,REAL32 FUNCTION f.REAL64.REAL32 (VAL INT x) IS f.REAL64 (x), f.REAL32 (x) :
+    REAL64,REAL64 FUNCTION f.REAL64.REAL64 (VAL INT x) IS f.REAL64 (x), f.REAL64 (x) :
+    --}}}
+    --{{{  trebles (27 functions)
+    INT, INT, INT    FUNCTION f.INT.INT.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.INT(x) :
+    INT, INT, INT64  FUNCTION f.INT.INT.INT64 (VAL INT x) IS f.INT(x), f.INT(x), f.INT64(x) :
+    INT, INT, REAL64 FUNCTION f.INT.INT.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x) :
+    INT, INT64, INT    FUNCTION f.INT.INT64.INT   (VAL INT x) IS f.INT(x), f.INT64(x), f.INT(x) :
+    INT, INT64, INT64  FUNCTION f.INT.INT64.INT64 (VAL INT x) IS f.INT(x), f.INT64(x), f.INT64(x) :
+    INT, INT64, REAL64 FUNCTION f.INT.INT64.REAL64(VAL INT x) IS f.INT(x), f.INT64(x), f.REAL64(x) :
+    INT, REAL64, INT    FUNCTION f.INT.REAL64.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x) :
+    INT, REAL64, INT64  FUNCTION f.INT.REAL64.INT64 (VAL INT x) IS f.INT(x), f.REAL64(x), f.INT64(x) :
+    INT, REAL64, REAL64 FUNCTION f.INT.REAL64.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x) :
+    INT64, INT, INT    FUNCTION f.INT64.INT.INT   (VAL INT x) IS f.INT64(x), f.INT(x), f.INT(x) :
+    INT64, INT, INT64  FUNCTION f.INT64.INT.INT64 (VAL INT x) IS f.INT64(x), f.INT(x), f.INT64(x) :
+    INT64, INT, REAL64 FUNCTION f.INT64.INT.REAL64(VAL INT x) IS f.INT64(x), f.INT(x), f.REAL64(x) :
+    INT64, INT64, INT    FUNCTION f.INT64.INT64.INT   (VAL INT x) IS f.INT64(x), f.INT64(x), f.INT(x) :
+    INT64, INT64, INT64  FUNCTION f.INT64.INT64.INT64 (VAL INT x) IS f.INT64(x), f.INT64(x), f.INT64(x) :
+    INT64, INT64, REAL64 FUNCTION f.INT64.INT64.REAL64(VAL INT x) IS f.INT64(x), f.INT64(x), f.REAL64(x) :
+    INT64, REAL64, INT    FUNCTION f.INT64.REAL64.INT   (VAL INT x) IS f.INT64(x), f.REAL64(x), f.INT(x) :
+    INT64, REAL64, INT64  FUNCTION f.INT64.REAL64.INT64 (VAL INT x) IS f.INT64(x), f.REAL64(x), f.INT64(x) :
+    INT64, REAL64, REAL64 FUNCTION f.INT64.REAL64.REAL64(VAL INT x) IS f.INT64(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, INT, INT    FUNCTION f.REAL64.INT.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x) :
+    REAL64, INT, INT64  FUNCTION f.REAL64.INT.INT64 (VAL INT x) IS f.REAL64(x), f.INT(x), f.INT64(x) :
+    REAL64, INT, REAL64 FUNCTION f.REAL64.INT.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x) :
+    REAL64, INT64, INT    FUNCTION f.REAL64.INT64.INT   (VAL INT x) IS f.REAL64(x), f.INT64(x), f.INT(x) :
+    REAL64, INT64, INT64  FUNCTION f.REAL64.INT64.INT64 (VAL INT x) IS f.REAL64(x), f.INT64(x), f.INT64(x) :
+    REAL64, INT64, REAL64 FUNCTION f.REAL64.INT64.REAL64(VAL INT x) IS f.REAL64(x), f.INT64(x), f.REAL64(x) :
+    REAL64, REAL64, INT    FUNCTION f.REAL64.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x) :
+    REAL64, REAL64, INT64  FUNCTION f.REAL64.REAL64.INT64 (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT64(x) :
+    REAL64, REAL64, REAL64 FUNCTION f.REAL64.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    --}}}
+    --{{{  quads   (16 functions)
+    INT, INT, INT, INT    FUNCTION f.INT.INT.INT.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.INT(x) :
+    INT, INT, INT, REAL64 FUNCTION f.INT.INT.INT.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    INT, INT, REAL64, INT    FUNCTION f.INT.INT.REAL64.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    INT, INT, REAL64, REAL64 FUNCTION f.INT.INT.REAL64.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    INT, REAL64, INT, INT    FUNCTION f.INT.REAL64.INT.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    INT, REAL64, INT, REAL64 FUNCTION f.INT.REAL64.INT.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    INT, REAL64, REAL64, INT    FUNCTION f.INT.REAL64.REAL64.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    INT, REAL64, REAL64, REAL64 FUNCTION f.INT.REAL64.REAL64.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, INT, INT, INT    FUNCTION f.REAL64.INT.INT.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.INT(x) :
+    REAL64, INT, INT, REAL64 FUNCTION f.REAL64.INT.INT.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    REAL64, INT, REAL64, INT    FUNCTION f.REAL64.INT.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    REAL64, INT, REAL64, REAL64 FUNCTION f.REAL64.INT.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, REAL64, INT, INT    FUNCTION f.REAL64.REAL64.INT.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    REAL64, REAL64, INT, REAL64 FUNCTION f.REAL64.REAL64.INT.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    REAL64, REAL64, REAL64, INT    FUNCTION f.REAL64.REAL64.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    REAL64, REAL64, REAL64, REAL64 FUNCTION f.REAL64.REAL64.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    --}}}
+    --{{{  quins   (32 functions)
+    INT, INT, INT, INT, INT    FUNCTION f.INT.INT.INT.INT.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.INT(x), f.INT(x) :
+    INT, INT, INT, INT, REAL64 FUNCTION f.INT.INT.INT.INT.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    INT, INT, INT, REAL64, INT    FUNCTION f.INT.INT.INT.REAL64.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    INT, INT, INT, REAL64, REAL64 FUNCTION f.INT.INT.INT.REAL64.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    INT, INT, REAL64, INT, INT    FUNCTION f.INT.INT.REAL64.INT.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    INT, INT, REAL64, INT, REAL64 FUNCTION f.INT.INT.REAL64.INT.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    INT, INT, REAL64, REAL64, INT    FUNCTION f.INT.INT.REAL64.REAL64.INT   (VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    INT, INT, REAL64, REAL64, REAL64 FUNCTION f.INT.INT.REAL64.REAL64.REAL64(VAL INT x) IS f.INT(x), f.INT(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    INT, REAL64, INT, INT, INT    FUNCTION f.INT.REAL64.INT.INT.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.INT(x), f.INT(x) :
+    INT, REAL64, INT, INT, REAL64 FUNCTION f.INT.REAL64.INT.INT.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    INT, REAL64, INT, REAL64, INT    FUNCTION f.INT.REAL64.INT.REAL64.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    INT, REAL64, INT, REAL64, REAL64 FUNCTION f.INT.REAL64.INT.REAL64.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    INT, REAL64, REAL64, INT, INT    FUNCTION f.INT.REAL64.REAL64.INT.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    INT, REAL64, REAL64, INT, REAL64 FUNCTION f.INT.REAL64.REAL64.INT.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    INT, REAL64, REAL64, REAL64, INT    FUNCTION f.INT.REAL64.REAL64.REAL64.INT   (VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    INT, REAL64, REAL64, REAL64, REAL64 FUNCTION f.INT.REAL64.REAL64.REAL64.REAL64(VAL INT x) IS f.INT(x), f.REAL64(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, INT, INT, INT, INT    FUNCTION f.REAL64.INT.INT.INT.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.INT(x), f.INT(x) :
+    REAL64, INT, INT, INT, REAL64 FUNCTION f.REAL64.INT.INT.INT.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    REAL64, INT, INT, REAL64, INT    FUNCTION f.REAL64.INT.INT.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    REAL64, INT, INT, REAL64, REAL64 FUNCTION f.REAL64.INT.INT.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, INT, REAL64, INT, INT    FUNCTION f.REAL64.INT.REAL64.INT.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    REAL64, INT, REAL64, INT, REAL64 FUNCTION f.REAL64.INT.REAL64.INT.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    REAL64, INT, REAL64, REAL64, INT    FUNCTION f.REAL64.INT.REAL64.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    REAL64, INT, REAL64, REAL64, REAL64 FUNCTION f.REAL64.INT.REAL64.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.INT(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, REAL64, INT, INT, INT    FUNCTION f.REAL64.REAL64.INT.INT.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.INT(x), f.INT(x) :
+    REAL64, REAL64, INT, INT, REAL64 FUNCTION f.REAL64.REAL64.INT.INT.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.INT(x), f.REAL64(x) :
+    REAL64, REAL64, INT, REAL64, INT    FUNCTION f.REAL64.REAL64.INT.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.REAL64(x), f.INT(x) :
+    REAL64, REAL64, INT, REAL64, REAL64 FUNCTION f.REAL64.REAL64.INT.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.INT(x), f.REAL64(x), f.REAL64(x) :
+    REAL64, REAL64, REAL64, INT, INT    FUNCTION f.REAL64.REAL64.REAL64.INT.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.INT(x), f.INT(x) :
+    REAL64, REAL64, REAL64, INT, REAL64 FUNCTION f.REAL64.REAL64.REAL64.INT.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.INT(x), f.REAL64(x) :
+    REAL64, REAL64, REAL64, REAL64, INT    FUNCTION f.REAL64.REAL64.REAL64.REAL64.INT   (VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.REAL64(x), f.INT(x) :
+    REAL64, REAL64, REAL64, REAL64, REAL64 FUNCTION f.REAL64.REAL64.REAL64.REAL64.REAL64(VAL INT x) IS f.REAL64(x), f.REAL64(x), f.REAL64(x), f.REAL64(x), f.REAL64(x) :
+    --}}}
+    --{{{  PROC multi.result.fns.0()
+    PROC multi.result.fns.0()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      PROC local.check.BOOL(VAL BOOL x)
+        check.BOOL(x, FALSE, "TWO-fn")
+      :
+      PROC local.check.REAL32(VAL REAL32 x)
+        local.check(INT ROUND x)
+      :
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  doubles, variables as actual results
+        BOOL.var,BOOL.var.2   := f.BOOL.BOOL   (x)
+        local.check.BOOL(BOOL.var)
+        local.check.BOOL(BOOL.var.2)
+        clobber.vars()
+        BOOL.var,BYTE.var   := f.BOOL.BYTE   (x)
+        local.check.BOOL(BOOL.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        BOOL.var,INT.var    := f.BOOL.INT    (x)
+        local.check.BOOL(BOOL.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        BOOL.var,INT16.var  := f.BOOL.INT16  (x)
+        local.check.BOOL(BOOL.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        BOOL.var,INT32.var  := f.BOOL.INT32  (x)
+        local.check.BOOL(BOOL.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        BOOL.var,INT64.var  := f.BOOL.INT64  (x)
+        local.check.BOOL(BOOL.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        BOOL.var,REAL32.var := f.BOOL.REAL32 (x)
+        local.check.BOOL(BOOL.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        BOOL.var,REAL64.var := f.BOOL.REAL64 (x)
+        local.check.BOOL(BOOL.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        BYTE.var,BOOL.var   := f.BYTE.BOOL   (x)
+        local.check(INT BYTE.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        BYTE.var,BYTE.var.2   := f.BYTE.BYTE   (x)
+        local.check(INT BYTE.var)
+        local.check(INT BYTE.var.2)
+        clobber.vars()
+        BYTE.var,INT.var    := f.BYTE.INT    (x)
+        local.check(INT BYTE.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        BYTE.var,INT16.var  := f.BYTE.INT16  (x)
+        local.check(INT BYTE.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        BYTE.var,INT32.var  := f.BYTE.INT32  (x)
+        local.check(INT BYTE.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        BYTE.var,INT64.var  := f.BYTE.INT64  (x)
+        local.check(INT BYTE.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        BYTE.var,REAL32.var := f.BYTE.REAL32 (x)
+        local.check(INT BYTE.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        BYTE.var,REAL64.var := f.BYTE.REAL64 (x)
+        local.check(INT BYTE.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT.var,BOOL.var   := f.INT.BOOL   (x)
+        local.check(INT INT.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        INT.var,BYTE.var   := f.INT.BYTE   (x)
+        local.check(INT INT.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        INT.var,INT.var.2    := f.INT.INT    (x)
+        local.check(INT INT.var)
+        local.check(INT INT.var.2)
+        clobber.vars()
+        INT.var,INT16.var  := f.INT.INT16  (x)
+        local.check(INT INT.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        INT.var,INT32.var  := f.INT.INT32  (x)
+        local.check(INT INT.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        INT.var,INT64.var  := f.INT.INT64  (x)
+        local.check(INT INT.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        INT.var,REAL32.var := f.INT.REAL32 (x)
+        local.check(INT INT.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        INT.var,REAL64.var := f.INT.REAL64 (x)
+        local.check(INT INT.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT16.var,BOOL.var   := f.INT16.BOOL   (x)
+        local.check(INT INT16.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        INT16.var,BYTE.var   := f.INT16.BYTE   (x)
+        local.check(INT INT16.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        INT16.var,INT.var    := f.INT16.INT    (x)
+        local.check(INT INT16.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        INT16.var,INT16.var.2  := f.INT16.INT16  (x)
+        local.check(INT INT16.var)
+        local.check(INT INT16.var.2)
+        clobber.vars()
+        INT16.var,INT32.var  := f.INT16.INT32  (x)
+        local.check(INT INT16.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        INT16.var,INT64.var  := f.INT16.INT64  (x)
+        local.check(INT INT16.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        INT16.var,REAL32.var := f.INT16.REAL32 (x)
+        local.check(INT INT16.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        INT16.var,REAL64.var := f.INT16.REAL64 (x)
+        local.check(INT INT16.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT32.var,BOOL.var   := f.INT32.BOOL   (x)
+        local.check(INT INT32.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        INT32.var,BYTE.var   := f.INT32.BYTE   (x)
+        local.check(INT INT32.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        INT32.var,INT.var    := f.INT32.INT    (x)
+        local.check(INT INT32.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        INT32.var,INT16.var  := f.INT32.INT16  (x)
+        local.check(INT INT32.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        INT32.var,INT32.var.2  := f.INT32.INT32  (x)
+        local.check(INT INT32.var)
+        local.check(INT INT32.var.2)
+        clobber.vars()
+        INT32.var,INT64.var  := f.INT32.INT64  (x)
+        local.check(INT INT32.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        INT32.var,REAL32.var := f.INT32.REAL32 (x)
+        local.check(INT INT32.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        INT32.var,REAL64.var := f.INT32.REAL64 (x)
+        local.check(INT INT32.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT64.var,BOOL.var   := f.INT64.BOOL   (x)
+        local.check(INT INT64.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        INT64.var,BYTE.var   := f.INT64.BYTE   (x)
+        local.check(INT INT64.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        INT64.var,INT.var    := f.INT64.INT    (x)
+        local.check(INT INT64.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        INT64.var,INT16.var  := f.INT64.INT16  (x)
+        local.check(INT INT64.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        INT64.var,INT32.var  := f.INT64.INT32  (x)
+        local.check(INT INT64.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        INT64.var,INT64.var.2  := f.INT64.INT64  (x)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.2)
+        clobber.vars()
+        INT64.var,REAL32.var := f.INT64.REAL32 (x)
+        local.check(INT INT64.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        INT64.var,REAL64.var := f.INT64.REAL64 (x)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        REAL32.var,BOOL.var   := f.REAL32.BOOL   (x)
+        local.check.REAL32(REAL32.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        REAL32.var,BYTE.var   := f.REAL32.BYTE   (x)
+        local.check.REAL32(REAL32.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        REAL32.var,INT.var    := f.REAL32.INT    (x)
+        local.check.REAL32(REAL32.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        REAL32.var,INT16.var  := f.REAL32.INT16  (x)
+        local.check.REAL32(REAL32.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        REAL32.var,INT32.var  := f.REAL32.INT32  (x)
+        local.check.REAL32(REAL32.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        REAL32.var,INT64.var  := f.REAL32.INT64  (x)
+        local.check.REAL32(REAL32.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        REAL32.var,REAL32.var.2 := f.REAL32.REAL32 (x)
+        local.check.REAL32(REAL32.var)
+        local.check.REAL32(REAL32.var.2)
+        clobber.vars()
+        REAL32.var,REAL64.var := f.REAL32.REAL64 (x)
+        local.check.REAL32(REAL32.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        REAL64.var,BOOL.var   := f.REAL64.BOOL   (x)
+        local.check.REAL64(REAL64.var)
+        local.check.BOOL(BOOL.var)
+        clobber.vars()
+        REAL64.var,BYTE.var   := f.REAL64.BYTE   (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT BYTE.var)
+        clobber.vars()
+        REAL64.var,INT.var    := f.REAL64.INT    (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT.var)
+        clobber.vars()
+        REAL64.var,INT16.var  := f.REAL64.INT16  (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT16.var)
+        clobber.vars()
+        REAL64.var,INT32.var  := f.REAL64.INT32  (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT32.var)
+        clobber.vars()
+        REAL64.var,INT64.var  := f.REAL64.INT64  (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        REAL64.var,REAL32.var := f.REAL64.REAL32 (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL32(REAL32.var)
+        clobber.vars()
+        REAL64.var,REAL64.var.2 := f.REAL64.REAL64 (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.1()
+    PROC multi.result.fns.1()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      PROC local.check.BOOL(VAL BOOL x)
+        check.BOOL(x, FALSE, "TWO-fn")
+      :
+      PROC local.check.REAL32(VAL REAL32 x)
+        local.check(INT ROUND x)
+      :
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  doubles, subscripted arrays as actual results
+        clobber.vars()
+        BOOL.arr[i],BOOL.arr.2[i2]   := f.BOOL.BOOL   (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.BOOL(BOOL.arr.2[j])
+        clobber.vars()
+        BOOL.arr[i],BYTE.arr[i]   := f.BOOL.BYTE   (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        BOOL.arr[i],INT.arr[i]    := f.BOOL.INT    (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        BOOL.arr[i],INT16.arr[i]  := f.BOOL.INT16  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        BOOL.arr[i],INT32.arr[i]  := f.BOOL.INT32  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        BOOL.arr[i],INT64.arr[i]  := f.BOOL.INT64  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        BOOL.arr[i],REAL32.arr[i] := f.BOOL.REAL32 (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        BOOL.arr[i],REAL64.arr[i] := f.BOOL.REAL64 (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        BYTE.arr[i],BOOL.arr[i]   := f.BYTE.BOOL   (x)
+        local.check(INT BYTE.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        BYTE.arr[i],BYTE.arr.2[i2]   := f.BYTE.BYTE   (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT BYTE.arr.2[j])
+        clobber.vars()
+        BYTE.arr[i],INT.arr[i]    := f.BYTE.INT    (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        BYTE.arr[i],INT16.arr[i]  := f.BYTE.INT16  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        BYTE.arr[i],INT32.arr[i]  := f.BYTE.INT32  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        BYTE.arr[i],INT64.arr[i]  := f.BYTE.INT64  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        BYTE.arr[i],REAL32.arr[i] := f.BYTE.REAL32 (x)
+        local.check(INT BYTE.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        BYTE.arr[i],REAL64.arr[i] := f.BYTE.REAL64 (x)
+        local.check(INT BYTE.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[i],BOOL.arr[i]   := f.INT.BOOL   (x)
+        local.check(INT INT.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT.arr[i],BYTE.arr[i]   := f.INT.BYTE   (x)
+        local.check(INT INT.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT.arr[i],INT.arr.2[i2]    := f.INT.INT    (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT.arr.2[j])
+        clobber.vars()
+        INT.arr[i],INT16.arr[i]  := f.INT.INT16  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT.arr[i],INT32.arr[i]  := f.INT.INT32  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT.arr[i],INT64.arr[i]  := f.INT.INT64  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[i],REAL32.arr[i] := f.INT.REAL32 (x)
+        local.check(INT INT.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT.arr[i],REAL64.arr[i] := f.INT.REAL64 (x)
+        local.check(INT INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT16.arr[i],BOOL.arr[i]   := f.INT16.BOOL   (x)
+        local.check(INT INT16.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT16.arr[i],BYTE.arr[i]   := f.INT16.BYTE   (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT16.arr[i],INT.arr[i]    := f.INT16.INT    (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT16.arr[i],INT16.arr.2[i2]  := f.INT16.INT16  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT16.arr.2[j])
+        clobber.vars()
+        INT16.arr[i],INT32.arr[i]  := f.INT16.INT32  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT16.arr[i],INT64.arr[i]  := f.INT16.INT64  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT16.arr[i],REAL32.arr[i] := f.INT16.REAL32 (x)
+        local.check(INT INT16.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT16.arr[i],REAL64.arr[i] := f.INT16.REAL64 (x)
+        local.check(INT INT16.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT32.arr[i],BOOL.arr[i]   := f.INT32.BOOL   (x)
+        local.check(INT INT32.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT32.arr[i],BYTE.arr[i]   := f.INT32.BYTE   (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT32.arr[i],INT.arr[i]    := f.INT32.INT    (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT32.arr[i],INT16.arr[i]  := f.INT32.INT16  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT32.arr[i],INT32.arr.2[i2]  := f.INT32.INT32  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT32.arr.2[j])
+        clobber.vars()
+        INT32.arr[i],INT64.arr[i]  := f.INT32.INT64  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT32.arr[i],REAL32.arr[i] := f.INT32.REAL32 (x)
+        local.check(INT INT32.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT32.arr[i],REAL64.arr[i] := f.INT32.REAL64 (x)
+        local.check(INT INT32.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[i],BOOL.arr[i]   := f.INT64.BOOL   (x)
+        local.check(INT INT64.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT64.arr[i],BYTE.arr[i]   := f.INT64.BYTE   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT64.arr[i],INT.arr[i]    := f.INT64.INT    (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT64.arr[i],INT16.arr[i]  := f.INT64.INT16  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT64.arr[i],INT32.arr[i]  := f.INT64.INT32  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT64.arr[i],INT64.arr.2[i2]  := f.INT64.INT64  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        clobber.vars()
+        INT64.arr[i],REAL32.arr[i] := f.INT64.REAL32 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT64.arr[i],REAL64.arr[i] := f.INT64.REAL64 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL32.arr[i],BOOL.arr[i]   := f.REAL32.BOOL   (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        REAL32.arr[i],BYTE.arr[i]   := f.REAL32.BYTE   (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        REAL32.arr[i],INT.arr[i]    := f.REAL32.INT    (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        REAL32.arr[i],INT16.arr[i]  := f.REAL32.INT16  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        REAL32.arr[i],INT32.arr[i]  := f.REAL32.INT32  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        REAL32.arr[i],INT64.arr[i]  := f.REAL32.INT64  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL32.arr[i],REAL32.arr.2[i2] := f.REAL32.REAL32 (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.REAL32(REAL32.arr.2[j])
+        clobber.vars()
+        REAL32.arr[i],REAL64.arr[i] := f.REAL32.REAL64 (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL64.arr[i],BOOL.arr[i]   := f.REAL64.BOOL   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        REAL64.arr[i],BYTE.arr[i]   := f.REAL64.BYTE   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        REAL64.arr[i],INT.arr[i]    := f.REAL64.INT    (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        REAL64.arr[i],INT16.arr[i]  := f.REAL64.INT16  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        REAL64.arr[i],INT32.arr[i]  := f.REAL64.INT32  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        REAL64.arr[i],INT64.arr[i]  := f.REAL64.INT64  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[i],REAL32.arr[i] := f.REAL64.REAL32 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        REAL64.arr[i],REAL64.arr.2[i2] := f.REAL64.REAL64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.2()
+    PROC multi.result.fns.2()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      PROC local.check.BOOL(VAL BOOL x)
+        check.BOOL(x, FALSE, "TWO-fn")
+      :
+      PROC local.check.REAL32(VAL REAL32 x)
+        local.check(INT ROUND x)
+      :
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  doubles, subscripted arrays with fn calls
+        BOOL.arr[id(i)],BOOL.arr.2[id(i2)]   := f.BOOL.BOOL   (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.BOOL(BOOL.arr.2[j])
+        clobber.vars()
+        BOOL.arr[id(i)],BYTE.arr[id(i)]   := f.BOOL.BYTE   (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],INT.arr[id(i)]    := f.BOOL.INT    (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],INT16.arr[id(i)]  := f.BOOL.INT16  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],INT32.arr[id(i)]  := f.BOOL.INT32  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],INT64.arr[id(i)]  := f.BOOL.INT64  (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],REAL32.arr[id(i)] := f.BOOL.REAL32 (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        BOOL.arr[id(i)],REAL64.arr[id(i)] := f.BOOL.REAL64 (x)
+        local.check.BOOL(BOOL.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],BOOL.arr[id(i)]   := f.BYTE.BOOL   (x)
+        local.check(INT BYTE.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],BYTE.arr.2[id(i2)]   := f.BYTE.BYTE   (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT BYTE.arr.2[j])
+        clobber.vars()
+        BYTE.arr[id(i)],INT.arr[id(i)]    := f.BYTE.INT    (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],INT16.arr[id(i)]  := f.BYTE.INT16  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],INT32.arr[id(i)]  := f.BYTE.INT32  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],INT64.arr[id(i)]  := f.BYTE.INT64  (x)
+        local.check(INT BYTE.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],REAL32.arr[id(i)] := f.BYTE.REAL32 (x)
+        local.check(INT BYTE.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        BYTE.arr[id(i)],REAL64.arr[id(i)] := f.BYTE.REAL64 (x)
+        local.check(INT BYTE.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],BOOL.arr[id(i)]   := f.INT.BOOL   (x)
+        local.check(INT INT.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],BYTE.arr[id(i)]   := f.INT.BYTE   (x)
+        local.check(INT INT.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],INT.arr.2[id(i2)]    := f.INT.INT    (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT.arr.2[j])
+        clobber.vars()
+        INT.arr[id(i)],INT16.arr[id(i)]  := f.INT.INT16  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],INT32.arr[id(i)]  := f.INT.INT32  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],INT64.arr[id(i)]  := f.INT.INT64  (x)
+        local.check(INT INT.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],REAL32.arr[id(i)] := f.INT.REAL32 (x)
+        local.check(INT INT.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT.arr[id(i)],REAL64.arr[id(i)] := f.INT.REAL64 (x)
+        local.check(INT INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],BOOL.arr[id(i)]   := f.INT16.BOOL   (x)
+        local.check(INT INT16.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],BYTE.arr[id(i)]   := f.INT16.BYTE   (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],INT.arr[id(i)]    := f.INT16.INT    (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],INT16.arr.2[id(i2)]  := f.INT16.INT16  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT16.arr.2[j])
+        clobber.vars()
+        INT16.arr[id(i)],INT32.arr[id(i)]  := f.INT16.INT32  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],INT64.arr[id(i)]  := f.INT16.INT64  (x)
+        local.check(INT INT16.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],REAL32.arr[id(i)] := f.INT16.REAL32 (x)
+        local.check(INT INT16.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT16.arr[id(i)],REAL64.arr[id(i)] := f.INT16.REAL64 (x)
+        local.check(INT INT16.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],BOOL.arr[id(i)]   := f.INT32.BOOL   (x)
+        local.check(INT INT32.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],BYTE.arr[id(i)]   := f.INT32.BYTE   (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],INT.arr[id(i)]    := f.INT32.INT    (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],INT16.arr[id(i)]  := f.INT32.INT16  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],INT32.arr.2[id(i2)]  := f.INT32.INT32  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT32.arr.2[j])
+        clobber.vars()
+        INT32.arr[id(i)],INT64.arr[id(i)]  := f.INT32.INT64  (x)
+        local.check(INT INT32.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],REAL32.arr[id(i)] := f.INT32.REAL32 (x)
+        local.check(INT INT32.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT32.arr[id(i)],REAL64.arr[id(i)] := f.INT32.REAL64 (x)
+        local.check(INT INT32.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],BOOL.arr[id(i)]   := f.INT64.BOOL   (x)
+        local.check(INT INT64.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],BYTE.arr[id(i)]   := f.INT64.BYTE   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],INT.arr[id(i)]    := f.INT64.INT    (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],INT16.arr[id(i)]  := f.INT64.INT16  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],INT32.arr[id(i)]  := f.INT64.INT32  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],INT64.arr.2[id(i2)]  := f.INT64.INT64  (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        clobber.vars()
+        INT64.arr[id(i)],REAL32.arr[id(i)] := f.INT64.REAL32 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)],REAL64.arr[id(i)] := f.INT64.REAL64 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],BOOL.arr[id(i)]   := f.REAL32.BOOL   (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],BYTE.arr[id(i)]   := f.REAL32.BYTE   (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],INT.arr[id(i)]    := f.REAL32.INT    (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],INT16.arr[id(i)]  := f.REAL32.INT16  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],INT32.arr[id(i)]  := f.REAL32.INT32  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],INT64.arr[id(i)]  := f.REAL32.INT64  (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL32.arr[id(i)],REAL32.arr.2[id(i2)] := f.REAL32.REAL32 (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.REAL32(REAL32.arr.2[j])
+        clobber.vars()
+        REAL32.arr[id(i)],REAL64.arr[id(i)] := f.REAL32.REAL64 (x)
+        local.check.REAL32(REAL32.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],BOOL.arr[id(i)]   := f.REAL64.BOOL   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.BOOL(BOOL.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],BYTE.arr[id(i)]   := f.REAL64.BYTE   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT BYTE.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],INT.arr[id(i)]    := f.REAL64.INT    (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],INT16.arr[id(i)]  := f.REAL64.INT16  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT16.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],INT32.arr[id(i)]  := f.REAL64.INT32  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT32.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],INT64.arr[id(i)]  := f.REAL64.INT64  (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],REAL32.arr[id(i)] := f.REAL64.REAL32 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL32(REAL32.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)],REAL64.arr.2[id(i2)] := f.REAL64.REAL64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.3()
+    PROC multi.result.fns.3()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      --PROC local.check.REAL64(VAL REAL64 x)
+      --  local.check(INT ROUND x)
+      --:
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  doubles, combinations of two INT results
+        INT.var, INT.var.2 := f.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        clobber.vars()
+        INT.var, INT.arr[i] := f.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT.var, INT.arr[id(i)] := f.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT.arr[i], INT.var := f.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2] := f.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[id(i2)] := f.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.var := f.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[i2] := f.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)] := f.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.4()
+    PROC multi.result.fns.4()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  trebles, variables as actual results
+        clobber.vars()
+        INT.var, INT.var.2, INT.var.3    := f.INT.INT.INT   (x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, INT.var.2, INT64.var  := f.INT.INT.INT64 (x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT INT64.var)
+        clobber.vars()
+        INT.var, INT.var.2, REAL64.var := f.INT.INT.REAL64(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT.var, INT64.var, INT.var.3    := f.INT.INT64.INT   (x)
+        local.check(INT.var)
+        local.check(INT INT64.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, INT64.var, INT64.var.3  := f.INT.INT64.INT64 (x)
+        local.check(INT.var)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.3)
+        clobber.vars()
+        INT.var, INT64.var, REAL64.var := f.INT.INT64.REAL64(x)
+        local.check(INT.var)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT.var, REAL64.var, INT.var.3    := f.INT.REAL64.INT   (x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, REAL64.var, INT64.var  := f.INT.REAL64.INT64 (x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        INT.var, REAL64.var, REAL64.var.3 := f.INT.REAL64.REAL64(x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        clobber.vars()
+        INT64.var, INT.var, INT.var.3    := f.INT64.INT.INT   (x)
+        local.check(INT INT64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT64.var, INT.var, INT64.var.3  := f.INT64.INT.INT64 (x)
+        local.check(INT INT64.var)
+        local.check(INT.var)
+        local.check(INT INT64.var.3)
+        clobber.vars()
+        INT64.var, INT.var, REAL64.var := f.INT64.INT.REAL64(x)
+        local.check(INT INT64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT64.var, INT64.var.2, INT.var    := f.INT64.INT64.INT   (x)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.2)
+        local.check(INT.var)
+        clobber.vars()
+        INT64.var, INT64.var.2, INT64.var.3  := f.INT64.INT64.INT64 (x)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.2)
+        local.check(INT INT64.var.3)
+        clobber.vars()
+        INT64.var, INT64.var.2, REAL64.var := f.INT64.INT64.REAL64(x)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.2)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT64.var, REAL64.var, INT.var    := f.INT64.REAL64.INT   (x)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        clobber.vars()
+        INT64.var, REAL64.var, INT64.var.3  := f.INT64.REAL64.INT64 (x)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var.3)
+        clobber.vars()
+        INT64.var, REAL64.var, REAL64.var.3 := f.INT64.REAL64.REAL64(x)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        clobber.vars()
+        REAL64.var, INT.var, INT.var.3    := f.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        REAL64.var, INT.var, INT64.var  := f.REAL64.INT.INT64 (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT INT64.var)
+        clobber.vars()
+        REAL64.var, INT.var, REAL64.var.3 := f.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        clobber.vars()
+        REAL64.var, INT64.var, INT.var    := f.REAL64.INT64.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var)
+        local.check(INT.var)
+        clobber.vars()
+        REAL64.var, INT64.var, INT64.var.3  := f.REAL64.INT64.INT64 (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var)
+        local.check(INT INT64.var.3)
+        clobber.vars()
+        REAL64.var, INT64.var, REAL64.var.3 := f.REAL64.INT64.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT INT64.var)
+        local.check.REAL64(REAL64.var.3)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, INT.var    := f.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, INT64.var  := f.REAL64.REAL64.INT64 (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT INT64.var)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, REAL64.var.3 := f.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.5()
+    PROC multi.result.fns.5()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  trebles, subscripted arrays as actual results
+        INT.arr[i], INT.arr.2[i2], INT.arr.3[i3]    := f.INT.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], INT64.arr[i]  := f.INT.INT.INT64 (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], REAL64.arr[i] := f.INT.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[i], INT64.arr[i], INT.arr.3[i3]    := f.INT.INT64.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT64.arr[i], INT64.arr.3[i3]  := f.INT.INT64.INT64 (x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT64.arr[i], REAL64.arr[i] := f.INT.INT64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], INT.arr.3[i3]    := f.INT.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], INT64.arr[i]  := f.INT.REAL64.INT64 (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3] := f.INT.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        INT64.arr[i], INT.arr[i], INT.arr.3[i3]    := f.INT64.INT.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT64.arr[i], INT.arr[i], INT64.arr.3[i3]  := f.INT64.INT.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[i], INT.arr[i], REAL64.arr[i] := f.INT64.INT.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[i], INT64.arr.2[i2], INT.arr[i]    := f.INT64.INT64.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT64.arr[i], INT64.arr.2[i2], INT64.arr.3[i3]  := f.INT64.INT64.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[i], INT64.arr.2[i2], REAL64.arr[i] := f.INT64.INT64.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[i], REAL64.arr[i], INT.arr[i]    := f.INT64.REAL64.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT64.arr[i], REAL64.arr[i], INT64.arr.3[i3]  := f.INT64.REAL64.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[i], REAL64.arr[i], REAL64.arr.3[i3] := f.INT64.REAL64.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], INT.arr.3[i3]    := f.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], INT64.arr[i]  := f.REAL64.INT.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3] := f.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[i], INT64.arr[i], INT.arr[i]    := f.REAL64.INT64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[i], INT64.arr[i], INT64.arr.3[i3]  := f.REAL64.INT64.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[i], INT64.arr[i], REAL64.arr.3[i3] := f.REAL64.INT64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i]    := f.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], INT64.arr[i]  := f.REAL64.REAL64.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3] := f.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.6()
+    PROC multi.result.fns.6()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  trebles, subscripted arrays with fn calls
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)]    := f.INT.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT64.arr[id(i)]  := f.INT.INT.INT64 (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)] := f.INT.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)], INT64.arr[id(i)], INT.arr.3[id(i3)]    := f.INT.INT64.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT64.arr[id(i)], INT64.arr.3[id(i3)]  := f.INT.INT64.INT64 (x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT64.arr[id(i)], REAL64.arr[id(i)] := f.INT.INT64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)]    := f.INT.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], INT64.arr[id(i)]  := f.INT.REAL64.INT64 (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)] := f.INT.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)]    := f.INT64.INT.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT.arr[id(i)], INT64.arr.3[id(i3)]  := f.INT64.INT.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT.arr[id(i)], REAL64.arr[id(i)] := f.INT64.INT.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT64.arr.2[id(i2)], INT.arr[id(i)]    := f.INT64.INT64.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT64.arr.2[id(i2)], INT64.arr.3[id(i3)]  := f.INT64.INT64.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[id(i)], INT64.arr.2[id(i2)], REAL64.arr[id(i)] := f.INT64.INT64.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)], REAL64.arr[id(i)], INT.arr[id(i)]    := f.INT64.REAL64.INT   (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT64.arr[id(i)], REAL64.arr[id(i)], INT64.arr.3[id(i3)]  := f.INT64.REAL64.INT64 (x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        INT64.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)] := f.INT64.REAL64.REAL64(x)
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)]    := f.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], INT64.arr[id(i)]  := f.REAL64.INT.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)] := f.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT64.arr[id(i)], INT.arr[id(i)]    := f.REAL64.INT64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT64.arr[id(i)], INT64.arr.3[id(i3)]  := f.REAL64.INT64.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check(INT INT64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT64.arr[id(i)], REAL64.arr.3[id(i3)] := f.REAL64.INT64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT INT64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)]    := f.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT64.arr[id(i)]  := f.REAL64.REAL64.INT64 (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT INT64.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)] := f.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.7()
+    PROC multi.result.fns.7()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      --PROC local.check.REAL64(VAL REAL64 x)
+      --  local.check(INT ROUND x)
+      --:
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  trebles, combinations of three INT results
+        INT.var, INT.var.2, INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, INT.arr[i], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, INT.arr[id(i)], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[i], INT.var, INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[i], INT.arr.2[id(i2)], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[id(i)], INT.var, INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[i2], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.var.3 := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.var.3)
+        clobber.vars()
+        INT.var, INT.var.2, INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.var, INT.arr[i], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.var, INT.arr[id(i)], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.var, INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[id(i2)], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.var, INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[i2], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[i3] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.var, INT.var.2, INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.var, INT.arr[i], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.var, INT.arr[id(i)], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.var)
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.var, INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[id(i2)], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.var, INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[i])
+        local.check(INT.var)
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[i2], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)] := f.INT.INT.INT(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.8()
+    PROC multi.result.fns.8()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quads,   variables as actual results
+        INT.var, INT.var.2, INT.var.3, INT.var.4    := f.INT.INT.INT.INT   (x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var, INT.var.2, INT.var.3, REAL64.var := f.INT.INT.INT.REAL64(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT.var, INT.var.2, REAL64.var, INT.var.4    := f.INT.INT.REAL64.INT   (x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var, INT.var.2, REAL64.var, REAL64.var.4 := f.INT.INT.REAL64.REAL64(x)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var, REAL64.var, INT.var.3, INT.var.4    := f.INT.REAL64.INT.INT   (x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var, REAL64.var, INT.var.3, REAL64.var.4 := f.INT.REAL64.INT.REAL64(x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var, REAL64.var, REAL64.var.3, INT.var.4    := f.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var, REAL64.var, REAL64.var.3, REAL64.var.4 := f.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var, INT.var, INT.var.3, INT.var.4    := f.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var, INT.var, INT.var.3, REAL64.var.4 := f.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var, INT.var, REAL64.var.3, INT.var.4    := f.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var, INT.var, REAL64.var.3, REAL64.var.4 := f.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, INT.var, INT.var.4    := f.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, INT.var, REAL64.var.4 := f.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, REAL64.var.3, INT.var    := f.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var)
+        clobber.vars()
+        REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := f.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.9()
+    PROC multi.result.fns.9()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quads,   subscripted arrays as actual results
+        INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], INT.arr.4[i4]    := f.INT.INT.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], REAL64.arr[i] := f.INT.INT.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], REAL64.arr[i], INT.arr.4[i4]    := f.INT.INT.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[i], INT.arr.2[i2], REAL64.arr[i], REAL64.arr.4[i4] := f.INT.INT.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.INT.REAL64.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.INT.REAL64.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], INT.arr.4[i4]    := f.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], REAL64.arr.4[i4] := f.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], INT.arr[i]    := f.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.10()
+    PROC multi.result.fns.10()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quads,   subscripted arrays with fn calls
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.INT.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], REAL64.arr[id(i)] := f.INT.INT.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], INT.arr.4[id(i4)]    := f.INT.INT.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], REAL64.arr.4[id(i4)] := f.INT.INT.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.REAL64.INT.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.REAL64.INT.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], INT.arr.4[id(i4)]    := f.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], INT.arr[id(i)]    := f.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.11()
+    PROC multi.result.fns.11()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2 :
+      BOOL BOOL.var, BOOL.var.2 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2 :
+      INT32 INT32.var, INT32.var.2 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          BYTE.var, BYTE.var.2 := BYTE 99, BYTE 99
+          BOOL.var, BOOL.var.2 := TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2 := 99(INT16), 99(INT16)
+          INT32.var, INT32.var.2 := 99(INT32), 99(INT32)
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2 := 99.0(REAL32), 99.0(REAL32)
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quins,   variables as actual results
+        INT.var.5, INT.var, INT.var.2, INT.var.3, INT.var.4    := f.INT.INT.INT.INT.INT   (x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, INT.var.2, INT.var.3, REAL64.var := f.INT.INT.INT.INT.REAL64(x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        INT.var.5, INT.var, INT.var.2, REAL64.var, INT.var.4    := f.INT.INT.INT.REAL64.INT   (x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, INT.var.2, REAL64.var, REAL64.var.4 := f.INT.INT.INT.REAL64.REAL64(x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, REAL64.var, INT.var.3, INT.var.4    := f.INT.INT.REAL64.INT.INT   (x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, REAL64.var, INT.var.3, REAL64.var.4 := f.INT.INT.REAL64.INT.REAL64(x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, REAL64.var, REAL64.var.3, INT.var.4    := f.INT.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, INT.var, REAL64.var, REAL64.var.3, REAL64.var.4 := f.INT.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, INT.var, INT.var.3, INT.var.4    := f.INT.REAL64.INT.INT.INT   (x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, INT.var, INT.var.3, REAL64.var.4 := f.INT.REAL64.INT.INT.REAL64(x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, INT.var, REAL64.var.3, INT.var.4    := f.INT.REAL64.INT.REAL64.INT   (x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, INT.var, REAL64.var.3, REAL64.var.4 := f.INT.REAL64.INT.REAL64.REAL64(x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, REAL64.var.2, INT.var, INT.var.4    := f.INT.REAL64.REAL64.INT.INT   (x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, REAL64.var.2, INT.var, REAL64.var.4 := f.INT.REAL64.REAL64.INT.REAL64(x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        INT.var.5, REAL64.var, REAL64.var.2, REAL64.var.3, INT.var    := f.INT.REAL64.REAL64.REAL64.INT   (x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var)
+        clobber.vars()
+        INT.var.5, REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := f.INT.REAL64.REAL64.REAL64.REAL64(x)
+        local.check(INT.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, INT.var.2, INT.var.3, INT.var.4    := f.REAL64.INT.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, INT.var.2, INT.var.3, REAL64.var := f.REAL64.INT.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var)
+        clobber.vars()
+        REAL64.var.5, INT.var, INT.var.2, REAL64.var, INT.var.4    := f.REAL64.INT.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, INT.var.2, REAL64.var, REAL64.var.4 := f.REAL64.INT.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check(INT.var.2)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, REAL64.var, INT.var.3, INT.var.4    := f.REAL64.INT.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, REAL64.var, INT.var.3, REAL64.var.4 := f.REAL64.INT.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, REAL64.var, REAL64.var.3, INT.var.4    := f.REAL64.INT.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, INT.var, REAL64.var, REAL64.var.3, REAL64.var.4 := f.REAL64.INT.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, INT.var, INT.var.3, INT.var.4    := f.REAL64.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, INT.var, INT.var.3, REAL64.var.4 := f.REAL64.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check(INT.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, INT.var, REAL64.var.3, INT.var.4    := f.REAL64.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, INT.var, REAL64.var.3, REAL64.var.4 := f.REAL64.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, REAL64.var.2, INT.var, INT.var.4    := f.REAL64.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check(INT.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, REAL64.var.2, INT.var, REAL64.var.4 := f.REAL64.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check(INT.var)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, REAL64.var.2, REAL64.var.3, INT.var    := f.REAL64.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check(INT.var)
+        clobber.vars()
+        REAL64.var.5, REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := f.REAL64.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.var.5)
+        local.check.REAL64(REAL64.var)
+        local.check.REAL64(REAL64.var.2)
+        local.check.REAL64(REAL64.var.3)
+        local.check.REAL64(REAL64.var.4)
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.12()
+    PROC multi.result.fns.12()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quins,   subscripted arrays as actual results
+        INT.arr.5[i5], INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], INT.arr.4[i4]    := f.INT.INT.INT.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], REAL64.arr[i] := f.INT.INT.INT.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], INT.arr.2[i2], REAL64.arr[i], INT.arr.4[i4]    := f.INT.INT.INT.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], INT.arr.2[i2], REAL64.arr[i], REAL64.arr.4[i4] := f.INT.INT.INT.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], REAL64.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.INT.INT.REAL64.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], REAL64.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.INT.INT.REAL64.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.INT.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.INT.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], INT.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.INT.REAL64.INT.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], INT.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.INT.REAL64.INT.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.INT.REAL64.INT.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.INT.REAL64.INT.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], INT.arr.4[i4]    := f.INT.REAL64.REAL64.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], REAL64.arr.4[i4] := f.INT.REAL64.REAL64.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], INT.arr[i]    := f.INT.REAL64.REAL64.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.INT.REAL64.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], INT.arr.4[i4]    := f.REAL64.INT.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], INT.arr.2[i2], INT.arr.3[i3], REAL64.arr[i] := f.REAL64.INT.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], INT.arr.2[i2], REAL64.arr[i], INT.arr.4[i4]    := f.REAL64.INT.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], INT.arr.2[i2], REAL64.arr[i], REAL64.arr.4[i4] := f.REAL64.INT.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], REAL64.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.REAL64.INT.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], REAL64.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.INT.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.REAL64.INT.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], INT.arr[i], REAL64.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.INT.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], INT.arr[i], INT.arr.3[i3], INT.arr.4[i4]    := f.REAL64.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], INT.arr[i], INT.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], INT.arr.4[i4]    := f.REAL64.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], INT.arr[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], INT.arr.4[i4]    := f.REAL64.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], INT.arr[i], REAL64.arr.4[i4] := f.REAL64.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], INT.arr[i]    := f.REAL64.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr.5[i5], REAL64.arr[i], REAL64.arr.2[i2], REAL64.arr.3[i3], REAL64.arr.4[i4] := f.REAL64.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns.13()
+    PROC multi.result.fns.13()
+      --{{{  variables
+      [2]BYTE BYTE.arr, BYTE.arr.2 :
+      [2]BOOL BOOL.arr, BOOL.arr.2 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2 :
+      [2]INT32 INT32.arr, INT32.arr.2 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      --}}}
+      --{{{  local.check routines
+      PROC local.check(VAL INT x)
+        check(x, 27, "MULTIfn")
+      :
+      --PROC local.check.BOOL(VAL BOOL x)
+      --  check.BOOL(x, FALSE, "TWO-fn")
+      --:
+      --PROC local.check.REAL32(VAL REAL32 x)
+      --  local.check(INT ROUND x)
+      --:
+      PROC local.check.REAL64(VAL REAL64 x)
+        local.check(INT ROUND x)
+      :
+      --}}}
+      --{{{  PROC clobber.vars
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i] := BYTE 99, BYTE 99
+              BOOL.arr[i], BOOL.arr.2[i] := TRUE, TRUE
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i] := 99(INT16), 99(INT16)
+              INT32.arr[i], INT32.arr.2[i] := 99(INT32), 99(INT32)
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  quins,   subscripted arrays with fn calls
+        INT.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.INT.INT.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], REAL64.arr[id(i)] := f.INT.INT.INT.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], INT.arr.4[id(i4)]    := f.INT.INT.INT.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], REAL64.arr.4[id(i4)] := f.INT.INT.INT.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.INT.REAL64.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.INT.REAL64.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.INT.REAL64.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.INT.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.REAL64.INT.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.REAL64.INT.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.INT.REAL64.INT.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.REAL64.INT.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], INT.arr.4[id(i4)]    := f.INT.REAL64.REAL64.INT.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], REAL64.arr.4[id(i4)] := f.INT.REAL64.REAL64.INT.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], INT.arr[id(i)]    := f.INT.REAL64.REAL64.REAL64.INT   (x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        INT.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.INT.REAL64.REAL64.REAL64.REAL64(x)
+        local.check(INT.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.INT.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], INT.arr.3[id(i3)], REAL64.arr[id(i)] := f.REAL64.INT.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], INT.arr.4[id(i4)]    := f.REAL64.INT.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], INT.arr.2[id(i2)], REAL64.arr[id(i)], REAL64.arr.4[id(i4)] := f.REAL64.INT.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.2[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.INT.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.INT.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.INT.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], INT.arr[id(i)], REAL64.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.INT.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.REAL64.INT.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], INT.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.INT.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], INT.arr.4[id(i4)]    := f.REAL64.REAL64.INT.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], INT.arr[id(i)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.INT.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], INT.arr.4[id(i4)]    := f.REAL64.REAL64.REAL64.INT.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check(INT.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], INT.arr[id(i)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.REAL64.INT.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check(INT.arr[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], INT.arr[id(i)]    := f.REAL64.REAL64.REAL64.REAL64.INT   (x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check(INT.arr[j])
+        clobber.vars()
+        REAL64.arr.5[id(i5)], REAL64.arr[id(i)], REAL64.arr.2[id(i2)], REAL64.arr.3[id(i3)], REAL64.arr.4[id(i4)] := f.REAL64.REAL64.REAL64.REAL64.REAL64(x)
+        local.check.REAL64(REAL64.arr.5[j])
+        local.check.REAL64(REAL64.arr[j])
+        local.check.REAL64(REAL64.arr.2[j])
+        local.check.REAL64(REAL64.arr.3[j])
+        local.check.REAL64(REAL64.arr.4[j])
+        clobber.vars()
+        --}}}
+    :
+    --}}}
+    --{{{  PROC multi.result.fns()
+    PROC multi.result.fns()
+      SEQ
+        title("Multi result fns")
+        multi.result.fns.0()
+        multi.result.fns.1()
+        multi.result.fns.2()
+        multi.result.fns.3()
+        multi.result.fns.4()
+        multi.result.fns.5()
+        multi.result.fns.6()
+        multi.result.fns.7()
+        multi.result.fns.8()
+        multi.result.fns.9()
+        multi.result.fns.10()
+        multi.result.fns.11()
+        multi.result.fns.12()
+        multi.result.fns.13()
+    :
+    --}}}
+    multi.result.fns()
+    --}}}
+    finish ()
+:

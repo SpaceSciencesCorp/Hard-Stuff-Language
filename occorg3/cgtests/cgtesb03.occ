@@ -1,0 +1,869 @@
+-- version control marker $Id: cgtest03.occ,v 1.4 1995/10/10 12:56:37 djb1 Exp $
+-- Abbreviations
+PROC cgtest3 (CHAN OF BYTE keyb, scr, err)
+  --{{{  cgmain.occ
+  -- version control marker $Id: cgmain.occ,v 3.9 1997/03/06 16:36:15 dcw Exp $
+  --{{{  cglib.occ
+  -- version control marker $Id: cglib.occ,v 1.6 1997/01/30 12:31:09 dcw Exp $
+  --
+  -- Cut-down version of the output utilities from the course library
+  --{{{  some constants
+  VAL BYTE BELL IS 7(BYTE):
+  VAL BYTE NULL IS 0(BYTE):
+  VAL BYTE BACK IS 8(BYTE):
+  VAL BYTE DELETE IS 127(BYTE):
+  --}}}
+  --{{{  out stuff
+  PROC out.repeat (VAL BYTE ch,  VAL INT n,  CHAN OF BYTE out)
+    --{{{
+    IF
+      n > 0
+        SEQ i = 0 FOR n
+          SEQ
+            out ! ch
+      TRUE
+        SKIP
+    --}}}
+  :
+  PROC out.ch (VAL BYTE ch,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    SEQ
+      out.repeat (' ', field - 1, out)
+      out ! ch
+    --}}}
+  :
+  PROC out.ch.funny (VAL BYTE ch,  VAL INT field,  CHAN OF [1]BYTE out)
+    --{{{
+    SEQ
+      VAL [1]BYTE thing RETYPES ch:
+      out ! thing
+    --}}}
+  :
+  PROC out.nl (CHAN OF BYTE out)
+    SEQ
+      out ! '*c'
+      out ! '*n'
+  :
+  PROC in.ch (BYTE ch, CHAN OF BYTE in)
+    --{{{
+    in ? ch
+    --}}}
+  :
+  PROC out.bell (CHAN OF BYTE out)
+    --{{{
+    out.ch (BELL, 1, out)
+    --}}}
+  :
+  PROC out.string (VAL []BYTE s,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL length IS SIZE s:
+    SEQ
+      out.repeat (' ', field - length, out)
+      SEQ i = 0 FOR length
+        SEQ
+          out ! s [i]
+    --}}}
+  :
+  PROC out.number (VAL INT n,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL max.digits IS 20:
+    [max.digits]INT D:
+    INT x, i:
+    IF
+      (n = 0)
+        --{{{  zero
+        SEQ
+          IF
+            (1 < field)
+              out.repeat (' ', field - 1, out)
+            (TRUE)
+              SKIP
+          out ! '0'
+        --}}}
+      (TRUE)
+        SEQ
+          i := 0     --  bring this line up here,   Vedat
+          --{{{  check negative
+          IF
+            (n < 0)
+              SEQ        -- this one can handle MOSTNEG INT as well
+                D [i] := -(n\10)
+                x := -(n/10)
+                i:= i + 1
+            (TRUE)         -- (n > 0)
+              x := n
+          --}}}
+          --{{{  decompose
+          -- i := 0   -- this line goes up in order to handle MOSTNEG INT
+          WHILE x > 0
+            SEQ
+              D [i] := x\10
+              x := x/10
+              i := i + 1
+          --}}}
+          --{{{  pad
+          IF
+            (n > 0)
+              out.repeat (' ', field - i, out)
+            (TRUE)
+              SEQ
+                out.repeat (' ', (field - 1) - i, out)
+                out ! '-'
+          --}}}
+          --{{{  output
+          WHILE i > 0
+            SEQ
+              i := i - 1
+              out ! BYTE (D [i] + (INT '0'))
+          --}}}
+    --}}}
+  :
+  PROC out.bool (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      (b = TRUE)
+        out.ch ('1', field, out)
+      (b = FALSE)
+        out.ch ('0', field, out)
+      (TRUE)
+        out.ch ('.', field, out)
+    --}}}
+  :
+  PROC out.yes.no (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      b
+        out.string ("yes", field, out)
+      TRUE
+        out.string ("no", field, out)
+    --}}}
+  :
+  PROC out.hex.int (VAL INT x, l, CHAN OF BYTE out)
+    --{{{  body of cg.write.hex.int
+    -- this procedure ignores the field length parameter 'l'
+    -- independent of endianism - DCW
+    VAL INT nibble          IS #F:
+    VAL INT hex.dig.per.int IS 8:
+    VAL INT bit.per.hex.dig IS 4:
+    VAL hex.dig             IS "0123456789ABCDEF":
+    INT digit, mask, shift:
+    [12]BYTE s:
+    SEQ
+      s[0]:= '#'
+      SEQ i = 1 FOR hex.dig.per.int
+        SEQ
+          shift :=  (hex.dig.per.int - i) * bit.per.hex.dig
+          digit := (x >> shift) /\ nibble
+          s[i]:= hex.dig[digit]
+      out.string ([s FROM 0 FOR (hex.dig.per.int + 1)], 0, out)
+    --}}}
+  :
+  PROC black.hole (CHAN OF BYTE in)
+    --{{{
+    WHILE TRUE
+      BYTE any:
+      in ? any
+    --}}}
+  :
+  --}}}
+  --}}}
+  VAL display.names  IS TRUE :
+  --VAL display.names  IS TRUE :
+  --VAL display.titles IS display.names :
+  VAL display.titles IS TRUE :
+  VAL no.of.columns   IS 6 :
+  VAL width.of.column IS 10 :
+  TIMER timer:                    -- DCW
+  INT start.time, end.time:       -- DCW
+  INT column.count :
+  --{{{  [INLINE] PROC out (VAL INT ch)
+  PROC out (VAL INT ch)
+    SEQ
+      IF
+        (ch >= 0) AND (ch < 256)
+          scr ! BYTE ch
+        TRUE
+          SKIP
+  :
+  --}}}
+  --{{{  PROC newline ()
+  PROC newline ()
+    SEQ
+      out.nl (scr)
+      column.count := 0
+  :
+  --}}}
+  --{{{  PROC writes (VAL []BYTE s)
+  PROC writes (VAL []BYTE s)
+    out.string (s, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC in (INT ch)
+  PROC in (INT ch)
+    --all input goes via this proc, but its only ever used to wait
+    SEQ
+      --newline ()
+      --writes ("(Press any key) ")
+      -- keyboard ? ch
+      ch := ch  -- stop any warning not used
+      newline ()
+  :
+  --}}}
+  --{{{  [INLINE] PROC writen (VAL INT n)
+  PROC writen (VAL INT n)
+    out.number (n, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC writehex (VAL INT value, length)
+  PROC writehex (VAL INT value, length)
+    --VAL hex IS "0123456789ABCDEF" :
+    --SEQ
+    --  SEQ i = 1 FOR length
+    --    out (INT hex [(value >> ((length - i) * 4)) /\ #F] )
+    --  out (-2)
+    out.hex.int (value, length, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC beep ()
+  PROC beep ()
+    out (7)
+  :
+  --}}}
+  --{{{  PROC failed.test  (VAL []BYTE where)
+  PROC failed.test(VAL []BYTE where)
+    SEQ
+      beep()
+      writes(where)
+      IF
+        display.names
+          newline()
+        TRUE
+          SKIP
+      writes (" Failed: ")
+  :
+  --}}}
+  --{{{  PROC completed.ok (VAL []BYTE where)
+  INT error.count, passed.count:
+  PROC completed.ok (VAL []BYTE where)
+    SEQ
+      passed.count := passed.count + 1
+      IF
+        display.names
+          SEQ
+            writes (where)
+            IF
+              column.count < no.of.columns
+                VAL spaces IS "            " :
+                VAL INT n.spaces IS width.of.column - (SIZE where):
+                SEQ
+                  IF
+                    n.spaces > 0
+                      writes([spaces FROM 0 FOR width.of.column - (SIZE where)])
+                      --SEQ i = 0 FOR width.of.column - (SIZE where)
+                      --  out ('*s' (INT))
+                    TRUE
+                      out ('*s' (INT))
+                  column.count := column.count + 1
+              TRUE
+                newline ()
+        TRUE
+          SKIP
+  :
+  --}}}
+  INT any.integer.name :
+  VAL []BYTE useless.name RETYPES any.integer.name :
+  VAL nibbles.per.INT IS (SIZE useless.name) * 2 :
+  --{{{  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+    INT key :
+    PROC writebool (VAL BOOL b)
+      IF
+        b
+          writes ("TRUE")
+        TRUE
+          writes ("FALSE")
+    :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writebool (val1)
+            writes ("  ")
+            writebool (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 2)
+            writes ("  ")
+            writehex (INT val2, 2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (val1, nibbles.per.INT)
+            writes ("  ")
+            writehex (val2, nibbles.per.INT)
+            writes ("  ")
+            writen (val1)
+            writes ("  ")
+            writen (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  --INLINE PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  -- If this is inline, every invocation creates an abbreviation
+  -- VAL test.type IS "..." :
+  -- and this makes the map file huge!
+  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+    check.INT (val1, val2, test.type)
+    --{{{  COMMENT
+    --IF
+      --val1 = val2
+        --check.INT (val1, val2, test.type)
+      --TRUE
+        --out.string ("!!! FAILED in check !!!*n*c", 0, out)
+    --}}}
+  :
+  --}}}
+  --{{{  PROC init (VAL []BYTE name, description)
+  [20]BYTE saved.name :
+  INT saved.name.len :
+  PROC init (VAL []BYTE name, description)
+    SEQ
+      timer ? start.time          -- DCW
+      writes (name)
+      writes ("  --  ")
+      writes (description)
+      newline ()
+      error.count := 0
+      passed.count := 0
+      saved.name.len := SIZE name
+      [saved.name FROM 0 FOR saved.name.len] := name
+  :
+  --}}}
+  --{{{  PROC title (VAL []BYTE string)
+  PROC title (VAL []BYTE string)
+    IF
+      display.titles
+        SEQ
+          IF
+            display.names
+              newline ()
+            TRUE
+              SKIP
+            TRUE
+              STOP
+          writes(string)
+          newline()
+      TRUE
+        SKIP
+      TRUE
+        STOP
+  :
+  --}}}
+  --{{{  PROC finish ()
+  PROC finish ()
+    SEQ
+      IF
+        display.names
+          newline ()
+        TRUE
+          SKIP
+      IF
+        error.count > 0
+          SEQ
+            writes ("^^^ Failed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": ")
+            writen (error.count)
+            writes (" errors detected, ")
+        TRUE
+          SEQ
+            writes ("^^^ Passed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": All ")
+      writen (passed.count)
+      writes (" tests passed OK")
+      timer ? end.time            -- DCW
+      newline ()
+      writes ("Time = ")
+      writen (end.time - start.time)
+      writes (" ticks")
+      newline ()
+  :
+  --}}}
+  --{{{  identity functions
+  -- These are designed to help stop the optimiser constant propagating.
+  -- If it manages to defeat these, make them more complex, as long as they
+  -- still return the identity function.
+  BOOL   FUNCTION id.BOOL   (VAL BOOL   x)
+    BOOL res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  BYTE   FUNCTION id.BYTE   (VAL BYTE   x)
+    BYTE   res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id.INT    (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT16  FUNCTION id.INT16  (VAL INT16  x)
+    INT16  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT32  FUNCTION id.INT32  (VAL INT32  x)
+    INT32  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT64  FUNCTION id.INT64  (VAL INT64  x)
+    INT64  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL32 FUNCTION id.REAL32 (VAL REAL32 x)
+    REAL32 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL64 FUNCTION id.REAL64 (VAL REAL64 x)
+    REAL64 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id        (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  --}}}
+  --}}}
+  VAL word IS "supercalifragilisticexpealidocious" :
+  INT key :
+  SEQ
+    init ("CG test 3", "Abbreviations")
+    --{{{  simple abbreviations           (A000 - A099)
+    --{{{  output message
+    title ("Simple abbreviations")
+    --}}}
+    SEQ
+      --{{{  VAL abbreviations            (A000 - A009)
+      INT x, y, z :
+      SEQ
+        x := 15
+        y := 45
+        z := 101
+        VAL k IS x :
+        check (k, 15, "A001")
+        VAL j IS y :
+        INT j :
+        SEQ
+          j := 47
+          check (j, 47, "A002")
+        VAL l IS z :
+        INT z :
+        SEQ
+          z := 100
+          check (l, 101, "A003")
+        check (z, 101, "A004")
+        VAL x IS y :
+        check (x, 45, "A005")
+        check (x, 15, "A006")
+        check (y, 45, "A007")
+        VAL a IS x :
+        check (a, x, "A008")
+      --}}}
+      --{{{  COMMENT other abbreviations          (A010 - A019)
+      --INT x, y, z :
+      --#PRAGMA PERMITALIASES z
+      --SEQ
+        --x := 101
+        --y := 23
+        --z := 42
+        --j IS y :
+        --SEQ
+          --j := 15
+          --check (j, 15, "A011")
+        --check   (y, 15, "A012")
+        --x IS y :
+        --x := 27
+        --check (x, 101, "A013")
+        --check (y,  27, "A014")
+        --a IS x :
+        --a IS y :
+        --a IS z :
+        --check (a, 42, "A015")
+        --a IS x :
+        --SEQ
+          --a := a + 1
+          --b IS a :
+          --check (b, 102, "A016")
+        --c IS z :
+        ----#PRAGMA PERMITALIASES z
+        --SEQ
+          ----z := 175
+          --check (c, 175, "A017")
+          ----check (z, 175, "A018")
+      --}}}
+      --{{{  COMMENT nested abbreviations         (A020 - A039)
+      --INT x, y, z, a :
+      --#PRAGMA PERMITALIASES x, y
+      --SEQ
+        --x := 42
+        --a := 99
+        --a IS x :
+        --SEQ
+          --check (a, 42, "A021")
+          --y := 54
+          --a IS y :
+          ----b IS y :
+          --SEQ
+            --check (a, 54, "A022")
+            --{{{  COMMENT
+            --b := b + 1
+            --check (b, 55, "A023")
+            --check (a, 55, "A024")
+            --}}}
+            --z := 10
+            --b IS z :
+            --check (b, 10, "A025")
+            ----check (b, 55, "A026")
+            --a IS a :
+            --check (a, 55, "A027")
+          --check (a, 42, "A028")
+          ----check (x, 42, "A029")
+        --check (a, 99, "A030")
+        --check (x, 42, "A031")
+      --}}}
+      --{{{  COMMENT abbreviations before WHILE   (A040 - A049)
+      --INT x :
+      --#PRAGMA PERMITALIASES x
+      --SEQ
+        --x := 2
+        --y IS x :
+        --WHILE x > 0
+          --IF
+            --x = 2
+              --x := 1
+            --x = 1
+              --SEQ
+                --x := 0
+                --check (y, 0, "A041")
+      --}}}
+    --}}}
+    --{{{  subscript abbreviations        (A100 - A199)
+    --{{{  output message
+    title ("Subscript abbreviations")
+    --}}}
+    INT x , y, z :
+    [5] BYTE b :
+    SEQ
+      x := 101
+      VAL x IS word [5] :
+      check (INT x, INT 'c', "A101")
+      VAL temp IS word :
+      VAL x IS temp [5] :
+      check (INT x, INT 'c', "A102")
+      y := 3
+      VAL a IS y :
+      VAL b IS word [3] :
+      VAL c IS word [a] :
+      VAL d IS word [y] :
+      VAL e IS y + 1 :
+      VAL f IS word [e] :
+      SEQ
+        check (INT b, INT 'e', "A103")
+        check (INT c, INT 'e', "A104")
+        check (INT d, INT 'e', "A105")
+        check (INT f, INT 'r', "A106")
+      x := 10
+      VAL g IS word [x] :
+      check (INT g, INT 'r', "A107")
+    --}}}
+    --{{{  slice abbreviations            (A200 - A299)
+    --{{{  output message
+    title ("Slice abbreviations")
+    --}}}
+    VAL last IS word [(SIZE word) - 1] :
+    VAL x IS [word FROM 5 FOR 5] :
+    SEQ
+      check (INT x [3], INT 'i', "A201")
+      --{{{  checks A202 to A206
+      VAL y IS 10 :
+      VAL z IS (SIZE  word) - y :
+      VAL rest IS [word FROM y FOR z] :
+      SEQ
+        check (INT rest [(SIZE rest) - 1], INT last, "A202")
+        VAL a1 IS [rest FROM 1 FOR z - 1] :
+        VAL a2 IS [a1 FROM 1 FOR z - 2] :
+        VAL a3 IS [a2 FROM 1 FOR z - 3] :
+        VAL a4 IS [a3 FROM 1 FOR z - 4] :
+        SEQ
+          check (INT a1 [(SIZE a1) - 1], INT last, "A203")
+          check (INT a2 [(SIZE a2) - 1], INT last, "A204")
+          check (INT a3 [(SIZE a3) - 1], INT last, "A205")
+          check (INT a4 [(SIZE a4) - 1], INT last, "A206")
+      --}}}
+    INT x, y, z :
+    [SIZE word] BYTE this.word :
+    SEQ
+      x := 3
+      y := 7
+      this.word := word
+      newword IS [this.word FROM x FOR y] :
+      newword := "blurgle"
+      check (INT this.word [4], INT 'l', "A207")
+      --{{{  at present this range checks! (subscripted slices)
+      check (INT [this.word FROM x FOR y] [4], INT 'g', "A208")
+      --}}}
+      check (INT this.word [2], INT 'p', "A209")
+      check (INT this.word [10], INT 'r', "A210")
+    --}}}
+    --{{{  channel abbreviations          (A300 - A399)
+    --{{{  output message
+    title ("Channel abbreviations")
+    --}}}
+    --{{{  COMMENT
+    --CHAN OF INT c :
+    --[10] CHAN OF INT cs :
+    --#PRAGMA PERMITALIASES cs
+    --INT x, y, z :
+    --SEQ
+      --{{{  A301
+      --PAR
+        --c ! 42
+        --d IS c :
+        --SEQ
+          --d ? x
+          --check (x, 42, "A301")
+      --}}}
+      --{{{  A302
+      --d IS c :
+      --PAR
+        --d ! 13
+        --d ? x
+      --check (x, 13, "A302")
+      --}}}
+      --{{{  A303
+      --d IS c :
+      --PAR
+        --c ! 100
+        --d ? x
+      --check (x, 100, "A303")
+      --}}}
+      --{{{  A304
+      --d IS cs [5] :
+      --PAR
+        --d ! 67
+        --cs [5] ? x
+      --check (x, 67, "A304")
+      --}}}
+      --{{{  A305
+      --d IS cs [7] :
+      --PAR
+        --cs [7] ! 54
+        --SEQ
+          --d ? x
+          --check (x, 54, "A305")
+      --}}}
+      --{{{  COMMENT A306
+      --d IS cs [3] :
+      ----#PRAGMA PERMITALIASES cs
+      --PAR
+        --cs [3] ! 12
+        --ALT
+          --ALT i = 0 FOR 10
+            --(i <> 3) & cs [i] ? y
+              --check (y, -y, "A306")
+          --d ? x
+            --check (x, 12, "A306")
+      --}}}
+      --{{{  A307
+      --PAR
+        --cs [0] ! 42
+        --PAR i = 0 FOR 9
+          --in IS cs [i] :
+          --out IS cs [i+1] :
+          --INT y :
+          --SEQ
+            --in ? y
+            --out ! y
+        --SEQ
+          --cs [9] ? x
+          --check (x, 42, "A307")
+      --}}}
+    --}}}
+    --}}}
+    --{{{  bug 320
+    PROC bug.320()
+      [100]INT mempool :
+      INT sockid :
+      SEQ
+        sockid := 1
+        []BYTE SCB RETYPES [mempool FROM sockid FOR 50] :
+        INT16 scb.fport RETYPES [SCB FROM 26 FOR 2] :
+        INT16 i16 :
+        i16 := scb.fport
+        check(sockid, 1, "B320a")
+    :
+    bug.320()
+    --}}}
+    --{{{  bug 592
+    PROC bug.592()
+      [10]INT16 x :
+      SEQ
+        SEQ i = 0 FOR SIZE x
+          x[i] := INT16 (i+90)
+        check(INT x[8], 98, "B592a")
+        INT16 y IS x[8] :
+        INT16 z IS x[3] :
+        PROC q ()
+          SEQ
+            check(INT y, 98, "B592b")
+            check(INT z, 93, "B592c")
+            y := 57(INT16)
+            z := -5(INT16)
+            check(INT y, 57, "B592d")
+            check(INT z, -5, "B592e")
+            check(INT x[9], 99, "B592f")
+            check(INT x[4], 94, "B592g")
+        :
+        SEQ
+          check(INT y, 98, "B592h")
+          check(INT z, 93, "B592i")
+          q ()
+          check(INT y, 57, "B592j")
+          check(INT z, -5, "B592k")
+        check(INT x[8], 57, "B592l")
+        check(INT x[9], 99, "B592m")
+        check(INT x[3], -5, "B592n")
+        check(INT x[4], 94, "B592o")
+    :
+    bug.592()
+    --}}}
+    --{{{  bug 776
+    PROC bug.776()
+      [5]INT global.a :
+      INT global.x, global.s :
+      [2]INT global.b :
+      PROC local ()
+        [SIZE global.a]INT a :
+        SEQ
+          SEQ i = 0 FOR SIZE a
+            a[i] := -i
+          -- This test is testing whether the following defn of x
+          -- is overwritten by 'result' bacause the compiler was mapping
+          -- the complicated segment length before bringing x into mapping scope
+          INT x IS a[0] :
+          []INT b IS [a FROM 1 FOR x + 2]:
+          SEQ
+            global.s := SIZE b
+            global.x := x
+            global.b := b
+          global.a := a
+      :
+      SEQ
+        local()
+        SEQ
+          check(global.s, 2, "B776a")
+          check(global.x, 0, "B776b")
+        SEQ i = 0 FOR SIZE global.a
+          check(global.a[i], -i, "B776c")
+        check(global.b[0], -1, "B776d")
+        check(global.b[1], -2, "B776e")
+    :
+    bug.776()
+    --}}}
+    --{{{  bug 1135
+    PROC bug.1135()
+      [2]INT x : -- 2 words is small enough to ensure it goes into workspace
+      SEQ
+        x[0], x[1] := 99, 88
+        y IS x[1] :
+        z IS y :
+        z := 77
+        check(x[0], 99, "B1135a")
+        check(x[1], 77, "B1135b")
+    :
+    bug.1135()
+    --}}}
+    --{{{  bug TS/2023
+    PROC bug.TS.2023()
+      CHAN OF INT c :
+      PAR
+        SEQ
+          c ! 99
+          d IS c :
+          d ! 98
+        INT x :
+        SEQ
+          c ? x
+          check(x, 99, "B2023a")
+          c ? x
+          check(x, 98, "B2023b")
+    :
+    bug.TS.2023()
+    --}}}
+    --{{{  bug INSdi01968
+    PROC bug.INSdi01968()
+      INT a, b, c, d :
+      PROC local()
+        [2]INT x :
+        SEQ
+          x[0], x[1] := a, b
+          y IS x[1] :
+          z IS y :
+          z := 7
+          c := x[0]
+          d := x[1]
+      :
+      SEQ
+        a, b := 9, 8
+        local()
+        check(c, 9, "B01968a")
+        check(d, 7, "B01968b")
+    :
+    bug.INSdi01968()
+    --}}}
+    finish ()
+:

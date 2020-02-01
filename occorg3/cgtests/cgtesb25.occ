@@ -1,0 +1,3720 @@
+-- version control marker $Id: cgtest25.occ,v 1.4 1995/10/10 12:58:36 djb1 Exp $
+-- Procedure parameter combinations
+PROC cgtest25 (CHAN OF BYTE keyb, scr, err)
+  #INCLUDE "cgmain.occ"
+  #INCLUDE "cgreal.occ"
+  -- version control marker $Id: cgmain.occ,v 3.9 1997/03/06 16:36:15 dcw Exp $
+  --{{{  cglib.occ
+  -- version control marker $Id: cglib.occ,v 1.6 1997/01/30 12:31:09 dcw Exp $
+  --
+  -- Cut-down version of the output utilities from the course library
+  --{{{  some constants
+  VAL BYTE BELL IS 7(BYTE):
+  VAL BYTE NULL IS 0(BYTE):
+  VAL BYTE BACK IS 8(BYTE):
+  VAL BYTE DELETE IS 127(BYTE):
+  --}}}
+  --{{{  out stuff
+  PROC out.repeat (VAL BYTE ch,  VAL INT n,  CHAN OF BYTE out)
+    --{{{
+    IF
+      n > 0
+        SEQ i = 0 FOR n
+          SEQ
+            out ! ch
+      TRUE
+        SKIP
+    --}}}
+  :
+  PROC out.ch (VAL BYTE ch,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    SEQ
+      out.repeat (' ', field - 1, out)
+      out ! ch
+    --}}}
+  :
+  PROC out.ch.funny (VAL BYTE ch,  VAL INT field,  CHAN OF [1]BYTE out)
+    --{{{
+    SEQ
+      VAL [1]BYTE thing RETYPES ch:
+      out ! thing
+    --}}}
+  :
+  PROC out.nl (CHAN OF BYTE out)
+    SEQ
+      out ! '*c'
+      out ! '*n'
+  :
+  PROC in.ch (BYTE ch, CHAN OF BYTE in)
+    --{{{
+    in ? ch
+    --}}}
+  :
+  PROC out.bell (CHAN OF BYTE out)
+    --{{{
+    out.ch (BELL, 1, out)
+    --}}}
+  :
+  PROC out.string (VAL []BYTE s,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL length IS SIZE s:
+    SEQ
+      out.repeat (' ', field - length, out)
+      SEQ i = 0 FOR length
+        SEQ
+          out ! s [i]
+    --}}}
+  :
+  PROC out.number (VAL INT n,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    VAL max.digits IS 20:
+    [max.digits]INT D:
+    INT x, i:
+    IF
+      (n = 0)
+        --{{{  zero
+        SEQ
+          IF
+            (1 < field)
+              out.repeat (' ', field - 1, out)
+            (TRUE)
+              SKIP
+          out ! '0'
+        --}}}
+      (TRUE)
+        SEQ
+          i := 0     --  bring this line up here,   Vedat
+          --{{{  check negative
+          IF
+            (n < 0)
+              SEQ        -- this one can handle MOSTNEG INT as well
+                D [i] := -(n\10)
+                x := -(n/10)
+                i:= i + 1
+            (TRUE)         -- (n > 0)
+              x := n
+          --}}}
+          --{{{  decompose
+          -- i := 0   -- this line goes up in order to handle MOSTNEG INT
+          WHILE x > 0
+            SEQ
+              D [i] := x\10
+              x := x/10
+              i := i + 1
+          --}}}
+          --{{{  pad
+          IF
+            (n > 0)
+              out.repeat (' ', field - i, out)
+            (TRUE)
+              SEQ
+                out.repeat (' ', (field - 1) - i, out)
+                out ! '-'
+          --}}}
+          --{{{  output
+          WHILE i > 0
+            SEQ
+              i := i - 1
+              out ! BYTE (D [i] + (INT '0'))
+          --}}}
+    --}}}
+  :
+  PROC out.bool (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      (b = TRUE)
+        out.ch ('1', field, out)
+      (b = FALSE)
+        out.ch ('0', field, out)
+      (TRUE)
+        out.ch ('.', field, out)
+    --}}}
+  :
+  PROC out.yes.no (VAL BOOL b,  VAL INT field,  CHAN OF BYTE out)
+    --{{{
+    IF
+      b
+        out.string ("yes", field, out)
+      TRUE
+        out.string ("no", field, out)
+    --}}}
+  :
+  PROC out.hex.int (VAL INT x, l, CHAN OF BYTE out)
+    --{{{  body of cg.write.hex.int
+    -- this procedure ignores the field length parameter 'l'
+    -- independent of endianism - DCW
+    VAL INT nibble          IS #F:
+    VAL INT hex.dig.per.int IS 8:
+    VAL INT bit.per.hex.dig IS 4:
+    VAL hex.dig             IS "0123456789ABCDEF":
+    INT digit, mask, shift:
+    [12]BYTE s:
+    SEQ
+      s[0]:= '#'
+      SEQ i = 1 FOR hex.dig.per.int
+        SEQ
+          shift :=  (hex.dig.per.int - i) * bit.per.hex.dig
+          digit := (x >> shift) /\ nibble
+          s[i]:= hex.dig[digit]
+      out.string ([s FROM 0 FOR (hex.dig.per.int + 1)], 0, out)
+    --}}}
+  :
+  PROC black.hole (CHAN OF BYTE in)
+    --{{{
+    WHILE TRUE
+      BYTE any:
+      in ? any
+    --}}}
+  :
+  --}}}
+  --}}}
+  VAL display.names  IS TRUE :
+  --VAL display.names  IS TRUE :
+  --VAL display.titles IS display.names :
+  VAL display.titles IS TRUE :
+  VAL no.of.columns   IS 6 :
+  VAL width.of.column IS 10 :
+  TIMER timer:                    -- DCW
+  INT start.time, end.time:       -- DCW
+  INT column.count :
+  --{{{  [INLINE] PROC out (VAL INT ch)
+  PROC out (VAL INT ch)
+    SEQ
+      IF
+        (ch >= 0) AND (ch < 256)
+          scr ! BYTE ch
+        TRUE
+          SKIP
+  :
+  --}}}
+  --{{{  PROC newline ()
+  PROC newline ()
+    SEQ
+      out.nl (scr)
+      column.count := 0
+  :
+  --}}}
+  --{{{  PROC writes (VAL []BYTE s)
+  PROC writes (VAL []BYTE s)
+    out.string (s, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC in (INT ch)
+  PROC in (INT ch)
+    --all input goes via this proc, but its only ever used to wait
+    SEQ
+      --newline ()
+      --writes ("(Press any key) ")
+      -- keyboard ? ch
+      ch := ch  -- stop any warning not used
+      newline ()
+  :
+  --}}}
+  --{{{  [INLINE] PROC writen (VAL INT n)
+  PROC writen (VAL INT n)
+    out.number (n, 0, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC writehex (VAL INT value, length)
+  PROC writehex (VAL INT value, length)
+    --VAL hex IS "0123456789ABCDEF" :
+    --SEQ
+    --  SEQ i = 1 FOR length
+    --    out (INT hex [(value >> ((length - i) * 4)) /\ #F] )
+    --  out (-2)
+    out.hex.int (value, length, scr)
+  :
+  --}}}
+  --{{{  [INLINE] PROC beep ()
+  PROC beep ()
+    out (7)
+  :
+  --}}}
+  --{{{  PROC failed.test  (VAL []BYTE where)
+  PROC failed.test(VAL []BYTE where)
+    SEQ
+      beep()
+      writes(where)
+      IF
+        display.names
+          newline()
+        TRUE
+          SKIP
+      writes (" Failed: ")
+  :
+  --}}}
+  --{{{  PROC completed.ok (VAL []BYTE where)
+  INT error.count, passed.count:
+  PROC completed.ok (VAL []BYTE where)
+    SEQ
+      passed.count := passed.count + 1
+      IF
+        display.names
+          SEQ
+            writes (where)
+            IF
+              column.count < no.of.columns
+                VAL spaces IS "            " :
+                VAL INT n.spaces IS width.of.column - (SIZE where):
+                SEQ
+                  IF
+                    n.spaces > 0
+                      writes([spaces FROM 0 FOR width.of.column - (SIZE where)])
+                      --SEQ i = 0 FOR width.of.column - (SIZE where)
+                      --  out ('*s' (INT))
+                    TRUE
+                      out ('*s' (INT))
+                  column.count := column.count + 1
+              TRUE
+                newline ()
+        TRUE
+          SKIP
+  :
+  --}}}
+  INT any.integer.name :
+  VAL []BYTE useless.name RETYPES any.integer.name :
+  VAL nibbles.per.INT IS (SIZE useless.name) * 2 :
+  --{{{  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+  PROC check.BOOL (VAL BOOL val1, val2, VAL []BYTE test.type)
+    INT key :
+    PROC writebool (VAL BOOL b)
+      IF
+        b
+          writes ("TRUE")
+        TRUE
+          writes ("FALSE")
+    :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writebool (val1)
+            writes ("  ")
+            writebool (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.BYTE (VAL BYTE val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 2)
+            writes ("  ")
+            writehex (INT val2, 2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+  PROC check.INT (VAL INT val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (val1, nibbles.per.INT)
+            writes ("  ")
+            writehex (val2, nibbles.per.INT)
+            writes ("  ")
+            writen (val1)
+            writes ("  ")
+            writen (val2)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  --INLINE PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+  -- If this is inline, every invocation creates an abbreviation
+  -- VAL test.type IS "..." :
+  -- and this makes the map file huge!
+  PROC check (VAL INT val1, val2, VAL []BYTE test.type)
+    check.INT (val1, val2, test.type)
+    --{{{  COMMENT
+    --IF
+      --val1 = val2
+        --check.INT (val1, val2, test.type)
+      --TRUE
+        --out.string ("!!! FAILED in check !!!*n*c", 0, out)
+    --}}}
+  :
+  --}}}
+  --{{{  PROC init (VAL []BYTE name, description)
+  [20]BYTE saved.name :
+  INT saved.name.len :
+  PROC init (VAL []BYTE name, description)
+    SEQ
+      timer ? start.time          -- DCW
+      writes (name)
+      writes ("  --  ")
+      writes (description)
+      newline ()
+      error.count := 0
+      passed.count := 0
+      saved.name.len := SIZE name
+      [saved.name FROM 0 FOR saved.name.len] := name
+  :
+  --}}}
+  --{{{  PROC title (VAL []BYTE string)
+  PROC title (VAL []BYTE string)
+    IF
+      display.titles
+        SEQ
+          IF
+            display.names
+              newline ()
+            TRUE
+              SKIP
+            TRUE
+              STOP
+          writes(string)
+          newline()
+      TRUE
+        SKIP
+      TRUE
+        STOP
+  :
+  --}}}
+  --{{{  PROC finish ()
+  PROC finish ()
+    SEQ
+      IF
+        display.names
+          newline ()
+        TRUE
+          SKIP
+      IF
+        error.count > 0
+          SEQ
+            writes ("^^^ Failed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": ")
+            writen (error.count)
+            writes (" errors detected, ")
+        TRUE
+          SEQ
+            writes ("^^^ Passed : ")
+            writes ([saved.name FROM 0 FOR saved.name.len])
+            writes (": All ")
+      writen (passed.count)
+      writes (" tests passed OK")
+      timer ? end.time            -- DCW
+      newline ()
+      writes ("Time = ")
+      writen (end.time - start.time)
+      writes (" ticks")
+      newline ()
+  :
+  --}}}
+  --{{{  identity functions
+  -- These are designed to help stop the optimiser constant propagating.
+  -- If it manages to defeat these, make them more complex, as long as they
+  -- still return the identity function.
+  BOOL   FUNCTION id.BOOL   (VAL BOOL   x)
+    BOOL res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  BYTE   FUNCTION id.BYTE   (VAL BYTE   x)
+    BYTE   res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id.INT    (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT16  FUNCTION id.INT16  (VAL INT16  x)
+    INT16  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT32  FUNCTION id.INT32  (VAL INT32  x)
+    INT32  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT64  FUNCTION id.INT64  (VAL INT64  x)
+    INT64  res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL32 FUNCTION id.REAL32 (VAL REAL32 x)
+    REAL32 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  REAL64 FUNCTION id.REAL64 (VAL REAL64 x)
+    REAL64 res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  INT    FUNCTION id        (VAL INT    x)
+    INT    res :
+    VALOF
+      res := x
+      RESULT res
+  :
+  --}}}
+  -- version control marker $Id: cgreal.occ,v 1.1 1995/10/10 13:03:56 djb1 Exp $
+  --{{{  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+  PROC check.INT16 (VAL INT16 val1, val2, VAL []BYTE test.type)
+    INT key :
+    SEQ
+      IF
+        val1 = val2
+          completed.ok (test.type)
+        TRUE
+          SEQ
+            failed.test(test.type)
+            writehex (INT val1, 4)
+            writes ("  ")
+            writehex (INT val2, 4)
+            in (key)
+            error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+  PROC print.failed.values(VAL []BYTE test.type, VAL []INT x1, x2)
+    PROC print.value(VAL []INT x)
+      SEQ i = 0 FOR SIZE x
+        writehex (x [((SIZE x) - 1) - i], nibbles.per.INT)
+    :
+    INT key :
+    SEQ
+      failed.test(test.type)
+      print.value(x1)
+      writes("  ")
+      print.value(x2)
+      in (key)
+      error.count := error.count + 1
+  :
+  --}}}
+  --{{{  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+  PROC check.INT32 (VAL INT32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+  PROC check.INT64 (VAL INT64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  old out.REAL32 and out.REAL64
+  --PROC outREAL32 (VAL REAL32 Real)
+  --  SKIP
+  --:
+  --PROC outREAL64 (VAL REAL64 real)
+  --  SKIP
+  --:
+  --}}}
+  --{{{  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL32 (VAL REAL32 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+  PROC check.REAL64 (VAL REAL64 val1, val2, VAL []BYTE test.type)
+    IF
+      val1 = val2
+        completed.ok (test.type)
+      TRUE
+        VAL []INT i.val1 RETYPES val1 :
+        VAL []INT i.val2 RETYPES val2 :
+        print.failed.values(test.type, i.val1, i.val2)
+  :
+  --}}}
+  --{{{  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+  PROC check.string (VAL []BYTE val1, val2, VAL []BYTE test.type)
+    INT key:
+    IF
+      (SIZE val1) <> (SIZE val2)
+        SEQ
+          failed.test (test.type)
+          writes (" string size mismatch")
+          in (key)
+          error.count := error.count + 1
+      IF i = 0 FOR SIZE val1
+        val1[i] <> val2[i]
+          SEQ
+            failed.test (test.type)
+            writes (" strings not equal")
+            in (key)
+            error.count := error.count + 1
+      TRUE
+        completed.ok (test.type)
+  :
+  --}}}
+  SEQ
+    init ("CG test 25", "Procedure parameter combinations")
+    --{{{  proc.params()
+    --{{{  local checks
+    PROC local.check.BOOL(VAL BOOL x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.BYTE(VAL BYTE x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.INT(VAL INT x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.INT16(VAL INT16 x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.INT32(VAL INT32 x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.INT64(VAL INT64 x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.REAL32(VAL REAL32 x, y)
+      ASSERT(x = y)
+    :
+    PROC local.check.REAL64(VAL REAL64 x, y)
+      ASSERT(x = y)
+    :
+    -- NOTE - we call ASSERT rather than check so that we don't have
+    -- lots of static link pointers and vectorspace pointers getting in the way!
+    --INLINE PROC local.check.BOOL(VAL BOOL x, y)
+    --  check.BOOL(x, y, "BOOL-02")
+    --:
+    --INLINE PROC local.check.BYTE(VAL BYTE x, y)
+    --  check.BYTE(x, y, "BYTE-02")
+    --:
+    --INLINE PROC local.check.INT(VAL INT x, y)
+    --  check.INT(x, y, "INT-02")
+    --:
+    --INLINE PROC local.check.INT16(VAL INT16 x, y)
+    --  check.INT16(x, y, "INT16-02")
+    --:
+    --INLINE PROC local.check.INT32(VAL INT32 x, y)
+    --  check.INT32(x, y, "INT32-02")
+    --:
+    --INLINE PROC local.check.INT64(VAL INT64 x, y)
+    --  check.INT64(x, y, "INT64-02")
+    --:
+    --INLINE PROC local.check.REAL32(VAL REAL32 x, y)
+    --  check.REAL32(x, y, "REAL32-02")
+    --:
+    --INLINE PROC local.check.REAL64(VAL REAL64 x, y)
+    --  check.REAL64(x, y, "REAL64-02")
+    --:
+    --}}}
+    --{{{  PROC proc.params.0()
+    PROC proc.params.0()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2, BYTE.var.3 :
+      BOOL BOOL.var, BOOL.var.2, BOOL.var.3 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2, INT16.var.3 :
+      INT32 INT32.var, INT32.var.2, INT32.var.3 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2, REAL32.var.3 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2, BYTE.arr.3 :
+      [2]BOOL BOOL.arr, BOOL.arr.2, BOOL.arr.3 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2, INT16.arr.3 :
+      [2]INT32 INT32.arr, INT32.arr.2, INT32.arr.3 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2, REAL32.arr.3 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      INT zero :
+      --}}}
+      --{{{  PROC clobber.vars()
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          zero := id(0)
+          BYTE.var, BYTE.var.2, BYTE.var.3 := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+          BOOL.var, BOOL.var.2, BOOL.var.3 := TRUE, TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2, INT16.var.3 := 99(INT16), 99(INT16), id.INT16(99(INT16))
+          INT32.var, INT32.var.2, INT32.var.3 := 99(INT32), 99(INT32), id.INT32(99(INT32))
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2, REAL32.var.3 := 99.0(REAL32), 99.0(REAL32), id.REAL32(99.0(REAL32))
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i], BYTE.arr.3[i] := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+              BOOL.arr[i], BOOL.arr.2[i], BOOL.arr.3[i] := TRUE, TRUE, id.BOOL(TRUE)
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i], INT16.arr.3[i] := 99(INT16), 99(INT16), id.INT16(99(INT16))
+              INT32.arr[i], INT32.arr.2[i], INT32.arr.3[i] := 99(INT32), 99(INT32), id.INT32(99(INT32))
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL32.arr.3[i] := id.REAL32(99.0(REAL32))
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  singles.with.check
+        --{{{  VAL
+        PROC single.VAL.BOOL(VAL BOOL x)
+          check.BOOL(x, TRUE, "BOOL-00")
+        :
+        PROC single.VAL.BYTE(VAL BYTE x)
+          check.BYTE(x, 99(BYTE), "BYTE-00")
+        :
+        PROC single.VAL.INT(VAL INT x)
+          check.INT(x, 99, "INT-00")
+        :
+        PROC single.VAL.INT16(VAL INT16 x)
+          check.INT16(x, 99(INT16), "INT16-00")
+        :
+        PROC single.VAL.INT32(VAL INT32 x)
+          check.INT32(x, 99(INT32), "INT32-00")
+        :
+        PROC single.VAL.INT64(VAL INT64 x)
+          check.INT64(x, 99(INT64), "INT64-00")
+        :
+        PROC single.VAL.REAL32(VAL REAL32 x)
+          check.REAL32(x, 99.0(REAL32), "REAL32-00")
+        :
+        PROC single.VAL.REAL64(VAL REAL64 x)
+          check.REAL64(x, 99.0(REAL64), "REAL64-00")
+        :
+        --}}}
+        --{{{  VAR
+        PROC single.BOOL(BOOL x)
+          check.BOOL(x, TRUE, "BOOL-01")
+        :
+        PROC single.BYTE(BYTE x)
+          check.BYTE(x, 99(BYTE), "BYTE-01")
+        :
+        PROC single.INT(INT x)
+          check.INT(x, 99, "INT-01")
+        :
+        PROC single.INT16(INT16 x)
+          check.INT16(x, 99(INT16), "INT16-01")
+        :
+        PROC single.INT32(INT32 x)
+          check.INT32(x, 99(INT32), "INT32-01")
+        :
+        PROC single.INT64(INT64 x)
+          check.INT64(x, 99(INT64), "INT64-01")
+        :
+        PROC single.REAL32(REAL32 x)
+          check.REAL32(x, 99.0(REAL32), "REAL32-01")
+        :
+        PROC single.REAL64(REAL64 x)
+          check.REAL64(x, 99.0(REAL64), "REAL64-01")
+        :
+        --}}}
+        --}}}
+        SEQ
+          --{{{  singles.with.check
+          single.VAL.BOOL(BOOL.var)
+          clobber.vars()
+          single.VAL.BOOL(BOOL.var OR BOOL.var.2)
+          clobber.vars()
+          single.VAL.BOOL(BOOL.arr[i])
+          clobber.vars()
+          single.VAL.BOOL(id.BOOL(BOOL.arr[i]))
+          clobber.vars()
+          single.BOOL(BOOL.var)
+          clobber.vars()
+          single.BOOL(BOOL.arr[i])
+          clobber.vars()
+          single.VAL.BYTE(BYTE.var)
+          clobber.vars()
+          single.VAL.BYTE(BYTE((INT BYTE.var) + (INT zero)))
+          clobber.vars()
+          single.VAL.BYTE(BYTE.arr[i])
+          clobber.vars()
+          single.VAL.BYTE(id.BYTE(BYTE.arr[i]))
+          clobber.vars()
+          single.BYTE(BYTE.var)
+          clobber.vars()
+          single.BYTE(BYTE.arr[i])
+          clobber.vars()
+          single.VAL.INT(INT.var)
+          clobber.vars()
+          single.VAL.INT(INT.var + zero)
+          clobber.vars()
+          single.VAL.INT(INT.arr[i])
+          clobber.vars()
+          single.VAL.INT(id.INT(INT.arr[i]))
+          clobber.vars()
+          single.INT(INT.var)
+          clobber.vars()
+          single.INT(INT.arr[i])
+          clobber.vars()
+          single.VAL.INT16(INT16.var)
+          clobber.vars()
+          single.VAL.INT16(INT16.var + (INT16 zero))
+          clobber.vars()
+          single.VAL.INT16(INT16.arr[i])
+          clobber.vars()
+          single.VAL.INT16(id.INT16(INT16.arr[i]))
+          clobber.vars()
+          single.INT16(INT16.var)
+          clobber.vars()
+          single.INT16(INT16.arr[i])
+          clobber.vars()
+          single.VAL.INT32(INT32.var)
+          clobber.vars()
+          single.VAL.INT32(INT32.var + (INT32 zero))
+          clobber.vars()
+          single.VAL.INT32(INT32.arr[i])
+          clobber.vars()
+          single.VAL.INT32(id.INT32(INT32.arr[i]))
+          clobber.vars()
+          single.INT32(INT32.var)
+          clobber.vars()
+          single.INT32(INT32.arr[i])
+          clobber.vars()
+          single.VAL.INT64(INT64.var)
+          clobber.vars()
+          single.VAL.INT64(INT64.var + (INT64 zero))
+          clobber.vars()
+          single.VAL.INT64(INT64.arr[i])
+          clobber.vars()
+          single.VAL.INT64(id.INT64(INT64.arr[i]))
+          clobber.vars()
+          single.INT64(INT64.var)
+          clobber.vars()
+          single.INT64(INT64.arr[i])
+          clobber.vars()
+          single.VAL.REAL32(REAL32.var)
+          clobber.vars()
+          single.VAL.REAL32(REAL32.var + (REAL32 ROUND zero))
+          clobber.vars()
+          single.VAL.REAL32(REAL32.arr[i])
+          clobber.vars()
+          single.VAL.REAL32(id.REAL32(REAL32.arr[i]))
+          clobber.vars()
+          single.REAL32(REAL32.var)
+          clobber.vars()
+          single.REAL32(REAL32.arr[i])
+          clobber.vars()
+          single.VAL.REAL64(REAL64.var)
+          clobber.vars()
+          single.VAL.REAL64(REAL64.var + (REAL64 ROUND zero))
+          clobber.vars()
+          single.VAL.REAL64(REAL64.arr[i])
+          clobber.vars()
+          single.VAL.REAL64(id.REAL64(REAL64.arr[i]))
+          clobber.vars()
+          single.REAL64(REAL64.var)
+          clobber.vars()
+          single.REAL64(REAL64.arr[i])
+          clobber.vars()
+          --}}}
+    :
+    --}}}
+    --{{{  PROC proc.params.1()
+    PROC proc.params.1()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2, BYTE.var.3 :
+      BOOL BOOL.var, BOOL.var.2, BOOL.var.3 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2, INT16.var.3 :
+      INT32 INT32.var, INT32.var.2, INT32.var.3 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2, REAL32.var.3 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2, BYTE.arr.3 :
+      [2]BOOL BOOL.arr, BOOL.arr.2, BOOL.arr.3 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2, INT16.arr.3 :
+      [2]INT32 INT32.arr, INT32.arr.2, INT32.arr.3 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2, REAL32.arr.3 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      INT zero :
+      --}}}
+      --{{{  PROC clobber.vars()
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          zero := id(0)
+          BYTE.var, BYTE.var.2, BYTE.var.3 := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+          BOOL.var, BOOL.var.2, BOOL.var.3 := TRUE, TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2, INT16.var.3 := 99(INT16), 99(INT16), id.INT16(99(INT16))
+          INT32.var, INT32.var.2, INT32.var.3 := 99(INT32), 99(INT32), id.INT32(99(INT32))
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2, REAL32.var.3 := 99.0(REAL32), 99.0(REAL32), id.REAL32(99.0(REAL32))
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i], BYTE.arr.3[i] := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+              BOOL.arr[i], BOOL.arr.2[i], BOOL.arr.3[i] := TRUE, TRUE, id.BOOL(TRUE)
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i], INT16.arr.3[i] := 99(INT16), 99(INT16), id.INT16(99(INT16))
+              INT32.arr[i], INT32.arr.2[i], INT32.arr.3[i] := 99(INT32), 99(INT32), id.INT32(99(INT32))
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL32.arr.3[i] := id.REAL32(99.0(REAL32))
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  singles.with.ASSERT
+        --{{{  VAL
+        PROC assert.VAL.BOOL(VAL BOOL x)
+          local.check.BOOL(x, TRUE)
+        :
+        PROC assert.VAL.BYTE(VAL BYTE x)
+          local.check.BYTE(x, 99(BYTE))
+        :
+        PROC assert.VAL.INT(VAL INT x)
+          local.check.INT(x, 99)
+        :
+        PROC assert.VAL.INT16(VAL INT16 x)
+          local.check.INT16(x, 99(INT16))
+        :
+        PROC assert.VAL.INT32(VAL INT32 x)
+          local.check.INT32(x, 99(INT32))
+        :
+        PROC assert.VAL.INT64(VAL INT64 x)
+          local.check.INT64(x, 99(INT64))
+        :
+        PROC assert.VAL.REAL32(VAL REAL32 x)
+          local.check.REAL32(x, 99.0(REAL32))
+        :
+        PROC assert.VAL.REAL64(VAL REAL64 x)
+          local.check.REAL64(x, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR
+        PROC assert.BOOL(BOOL x)
+          local.check.BOOL(x, TRUE)
+        :
+        PROC assert.BYTE(BYTE x)
+          local.check.BYTE(x, 99(BYTE))
+        :
+        PROC assert.INT(INT x)
+          local.check.INT(x, 99)
+        :
+        PROC assert.INT16(INT16 x)
+          local.check.INT16(x, 99(INT16))
+        :
+        PROC assert.INT32(INT32 x)
+          local.check.INT32(x, 99(INT32))
+        :
+        PROC assert.INT64(INT64 x)
+          local.check.INT64(x, 99(INT64))
+        :
+        PROC assert.REAL32(REAL32 x)
+          local.check.REAL32(x, 99.0(REAL32))
+        :
+        PROC assert.REAL64(REAL64 x)
+          local.check.REAL64(x, 99.0(REAL64))
+        :
+        --}}}
+        --}}}
+        SEQ
+          --{{{  singles.with.ASSERT
+          assert.VAL.BOOL(BOOL.var)
+          clobber.vars()
+          assert.VAL.BOOL(BOOL.var OR BOOL.var.2)
+          clobber.vars()
+          assert.VAL.BOOL(BOOL.arr[i])
+          clobber.vars()
+          assert.VAL.BOOL(id.BOOL(BOOL.arr[i]))
+          clobber.vars()
+          assert.BOOL(BOOL.var)
+          clobber.vars()
+          assert.BOOL(BOOL.arr[i])
+          clobber.vars()
+          assert.VAL.BYTE(BYTE.var)
+          clobber.vars()
+          assert.VAL.BYTE(BYTE((INT BYTE.var) + (INT zero)))
+          clobber.vars()
+          assert.VAL.BYTE(BYTE.arr[i])
+          clobber.vars()
+          assert.VAL.BYTE(id.BYTE(BYTE.arr[i]))
+          clobber.vars()
+          assert.BYTE(BYTE.var)
+          clobber.vars()
+          assert.BYTE(BYTE.arr[i])
+          clobber.vars()
+          assert.VAL.INT(INT.var)
+          clobber.vars()
+          assert.VAL.INT(INT.var + zero)
+          clobber.vars()
+          assert.VAL.INT(INT.arr[i])
+          clobber.vars()
+          assert.VAL.INT(id.INT(INT.arr[i]))
+          clobber.vars()
+          assert.INT(INT.var)
+          clobber.vars()
+          assert.INT(INT.arr[i])
+          clobber.vars()
+          assert.VAL.INT16(INT16.var)
+          clobber.vars()
+          assert.VAL.INT16(INT16.var + (INT16 zero))
+          clobber.vars()
+          assert.VAL.INT16(INT16.arr[i])
+          clobber.vars()
+          assert.VAL.INT16(id.INT16(INT16.arr[i]))
+          clobber.vars()
+          assert.INT16(INT16.var)
+          clobber.vars()
+          assert.INT16(INT16.arr[i])
+          clobber.vars()
+          assert.VAL.INT32(INT32.var)
+          clobber.vars()
+          assert.VAL.INT32(INT32.var + (INT32 zero))
+          clobber.vars()
+          assert.VAL.INT32(INT32.arr[i])
+          clobber.vars()
+          assert.VAL.INT32(id.INT32(INT32.arr[i]))
+          clobber.vars()
+          assert.INT32(INT32.var)
+          clobber.vars()
+          assert.INT32(INT32.arr[i])
+          clobber.vars()
+          assert.VAL.INT64(INT64.var)
+          clobber.vars()
+          assert.VAL.INT64(INT64.var + (INT64 zero))
+          clobber.vars()
+          assert.VAL.INT64(INT64.arr[i])
+          clobber.vars()
+          assert.VAL.INT64(id.INT64(INT64.arr[i]))
+          clobber.vars()
+          assert.INT64(INT64.var)
+          clobber.vars()
+          assert.INT64(INT64.arr[i])
+          clobber.vars()
+          assert.VAL.REAL32(REAL32.var)
+          clobber.vars()
+          assert.VAL.REAL32(REAL32.var + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.VAL.REAL32(REAL32.arr[i])
+          clobber.vars()
+          assert.VAL.REAL32(id.REAL32(REAL32.arr[i]))
+          clobber.vars()
+          assert.REAL32(REAL32.var)
+          clobber.vars()
+          assert.REAL32(REAL32.arr[i])
+          clobber.vars()
+          assert.VAL.REAL64(REAL64.var)
+          clobber.vars()
+          assert.VAL.REAL64(REAL64.var + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.VAL.REAL64(REAL64.arr[i])
+          clobber.vars()
+          assert.VAL.REAL64(id.REAL64(REAL64.arr[i]))
+          clobber.vars()
+          assert.REAL64(REAL64.var)
+          clobber.vars()
+          assert.REAL64(REAL64.arr[i])
+          clobber.vars()
+          --}}}
+    :
+    --}}}
+    --{{{  PROC proc.params.2()
+    PROC proc.params.2()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2, BYTE.var.3 :
+      BOOL BOOL.var, BOOL.var.2, BOOL.var.3 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2, INT16.var.3 :
+      INT32 INT32.var, INT32.var.2, INT32.var.3 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2, REAL32.var.3 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2, BYTE.arr.3 :
+      [2]BOOL BOOL.arr, BOOL.arr.2, BOOL.arr.3 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2, INT16.arr.3 :
+      [2]INT32 INT32.arr, INT32.arr.2, INT32.arr.3 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2, REAL32.arr.3 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      INT zero :
+      --}}}
+      --{{{  PROC clobber.vars()
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          zero := id(0)
+          BYTE.var, BYTE.var.2, BYTE.var.3 := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+          BOOL.var, BOOL.var.2, BOOL.var.3 := TRUE, TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2, INT16.var.3 := 99(INT16), 99(INT16), id.INT16(99(INT16))
+          INT32.var, INT32.var.2, INT32.var.3 := 99(INT32), 99(INT32), id.INT32(99(INT32))
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2, REAL32.var.3 := 99.0(REAL32), 99.0(REAL32), id.REAL32(99.0(REAL32))
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i], BYTE.arr.3[i] := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+              BOOL.arr[i], BOOL.arr.2[i], BOOL.arr.3[i] := TRUE, TRUE, id.BOOL(TRUE)
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i], INT16.arr.3[i] := 99(INT16), 99(INT16), id.INT16(99(INT16))
+              INT32.arr[i], INT32.arr.2[i], INT32.arr.3[i] := 99(INT32), 99(INT32), id.INT32(99(INT32))
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL32.arr.3[i] := id.REAL32(99.0(REAL32))
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  doubles.with.ASSERT
+        --{{{  VAL VAL
+        PROC assert.BOOL.VAL.VAL(VAL BOOL x1, x2)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAL(VAL BYTE x1, x2)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAL(VAL INT x1, x2)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+        :
+        PROC assert.INT16.VAL.VAL(VAL INT16 x1, x2)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAL(VAL INT32 x1, x2)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAL(VAL INT64 x1, x2)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAL(VAL REAL32 x1, x2)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAL(VAL REAL64 x1, x2)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAR
+        PROC assert.BOOL.VAR.VAR(BOOL x1, x2)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAR(BYTE x1, x2)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAR(INT x1, x2)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+        :
+        PROC assert.INT16.VAR.VAR(INT16 x1, x2)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAR(INT32 x1, x2)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAR(INT64 x1, x2)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAR(REAL32 x1, x2)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAR(REAL64 x1, x2)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAL VAR
+        PROC assert.BOOL.VAL.VAR(VAL BOOL x1, BOOL x2)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAR(VAL BYTE x1, BYTE x2)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAR(VAL INT x1, INT x2)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+        :
+        PROC assert.INT16.VAL.VAR(VAL INT16 x1, INT16 x2)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAR(VAL INT32 x1, INT32 x2)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAR(VAL INT64 x1, INT64 x2)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAR(VAL REAL32 x1, REAL32 x2)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAR(VAL REAL64 x1, REAL64 x2)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAL
+        PROC assert.BOOL.VAR.VAL(BOOL x1, VAL BOOL x2)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAL(BYTE x1, VAL BYTE x2)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAL(INT x1, VAL INT x2)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+        :
+        PROC assert.INT16.VAR.VAL(INT16 x1, VAL INT16 x2)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAL(INT32 x1, VAL INT32 x2)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAL(INT64 x1, VAL INT64 x2)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAL(REAL32 x1, VAL REAL32 x2)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAL(REAL64 x1, VAL REAL64 x2)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+        :
+        --}}}
+        --}}}
+        SEQ
+          --{{{  doubles.with.ASSERT
+          --{{{  BOOL
+          assert.BOOL.VAL.VAL(BOOL.var, BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var OR BOOL.var.2, BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.arr[i], BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(id.BOOL(BOOL.arr[i]), BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.var, BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.arr[i], BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var, BOOL.var.2 OR BOOL.var)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var OR BOOL.var.2, BOOL.var.2 OR BOOL.var)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.arr[i], BOOL.var.2 OR BOOL.var)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(id.BOOL(BOOL.arr[i]), BOOL.var.2 OR BOOL.var)
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.var, BOOL.var.2 OR BOOL.var.3)
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.arr[i], BOOL.var.2 OR BOOL.var)
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var OR BOOL.var.2, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.arr[i], BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAL(id.BOOL(BOOL.arr[i]), BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.var, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.arr[i], BOOL.arr.2[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var, id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.var OR BOOL.var.2, id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAL.VAL(BOOL.arr[i], id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAL.VAL(id.BOOL(BOOL.arr[i]), id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.var, id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAR.VAL(BOOL.arr[i], id.BOOL(BOOL.var.2))
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.var, BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.var OR BOOL.var.2, BOOL.var.3)
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.arr[i], BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAR(id.BOOL(BOOL.arr[i]), BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAR.VAR(BOOL.var, BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAR.VAR(BOOL.arr[i], BOOL.var.2)
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.var, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.var OR BOOL.var.2, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAR(BOOL.arr[i], BOOL.arr.2[i])
+          clobber.vars()
+          assert.BOOL.VAL.VAR(id.BOOL(BOOL.arr[i]), BOOL.arr.2[i])
+          clobber.vars()
+          assert.BOOL.VAR.VAR(BOOL.var, BOOL.arr[i])
+          clobber.vars()
+          assert.BOOL.VAR.VAR(BOOL.arr[i], BOOL.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  BYTE
+          assert.BYTE.VAL.VAL(BYTE.var, BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE ((INT BYTE.var) + zero), BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.arr[i], BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAL(id.BYTE(BYTE.arr[i]), BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.var, BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.arr[i], BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.var, BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE ((INT BYTE.var) + zero), BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.arr[i], BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(id.BYTE(BYTE.arr[i]), BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.var, BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.arr[i], BYTE ((INT BYTE.var.2) + zero))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.var, BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE ((INT BYTE.var) + zero), BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.arr[i], BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAL(id.BYTE(BYTE.arr[i]), BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.var, BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.arr[i], BYTE.arr.2[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.var, id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE ((INT BYTE.var) + zero), id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(BYTE.arr[i], id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAL.VAL(id.BYTE(BYTE.arr[i]), id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.var, id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAR.VAL(BYTE.arr[i], id.BYTE(BYTE.var.2))
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE.var, BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE ((INT BYTE.var) + zero), BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE.arr[i], BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAR(id.BYTE(BYTE.arr[i]), BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAR.VAR(BYTE.var, BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAR.VAR(BYTE.arr[i], BYTE.var.2)
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE.var, BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE ((INT BYTE.var) + zero), BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAR(BYTE.arr[i], BYTE.arr.2[i])
+          clobber.vars()
+          assert.BYTE.VAL.VAR(id.BYTE(BYTE.arr[i]), BYTE.arr.2[i])
+          clobber.vars()
+          assert.BYTE.VAR.VAR(BYTE.var, BYTE.arr[i])
+          clobber.vars()
+          assert.BYTE.VAR.VAR(BYTE.arr[i], BYTE.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  INT
+          assert.INT.VAL.VAL(INT.var, INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var + (INT zero), INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.arr[i], INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAL(id.INT(INT.arr[i]), INT.var.2)
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.var, INT.var.2)
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.arr[i], INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var, INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var + (INT zero), INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL(id.INT(INT.arr[i]), INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.var, INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.arr[i], INT.var.2 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var, INT.arr[i])
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var + (INT zero), INT.arr[i])
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.arr[i], INT.arr[i])
+          clobber.vars()
+          assert.INT.VAL.VAL(id.INT(INT.arr[i]), INT.arr[i])
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.var, INT.arr[i])
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.arr[i], INT.arr.2[i])
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var, id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.var + (INT zero), id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAL.VAL(INT.arr[i], id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAL.VAL(id.INT(INT.arr[i]), id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.var, id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAR.VAL(INT.arr[i], id.INT(INT.var.2))
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.var, INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.var + (INT zero), INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.arr[i], INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAR(id.INT(INT.arr[i]), INT.var.2)
+          clobber.vars()
+          assert.INT.VAR.VAR(INT.var, INT.var.2)
+          clobber.vars()
+          assert.INT.VAR.VAR(INT.arr[i], INT.var.2)
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.var, INT.arr[i])
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.var + (INT zero), INT.arr[i])
+          clobber.vars()
+          assert.INT.VAL.VAR(INT.arr[i], INT.arr.2[i])
+          clobber.vars()
+          assert.INT.VAL.VAR(id.INT(INT.arr[i]), INT.arr.2[i])
+          clobber.vars()
+          assert.INT.VAR.VAR(INT.var, INT.arr[i])
+          clobber.vars()
+          assert.INT.VAR.VAR(INT.arr[i], INT.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  INT16
+          assert.INT16.VAL.VAL(INT16.var, INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var + (INT16 zero), INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.arr[i], INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAL(id.INT16(INT16.arr[i]), INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.var, INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.arr[i], INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var, INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var + (INT16 zero), INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.arr[i], INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAL.VAL(id.INT16(INT16.arr[i]), INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.var, INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.arr[i], INT16.var.2 + (INT16 zero))
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var, INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var + (INT16 zero), INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.arr[i], INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAL.VAL(id.INT16(INT16.arr[i]), INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.var, INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.arr[i], INT16.arr.2[i])
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var, id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.var + (INT16 zero), id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAL.VAL(INT16.arr[i], id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAL.VAL(id.INT16(INT16.arr[i]), id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.var, id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAR.VAL(INT16.arr[i], id.INT16(INT16.var.2))
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.var, INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.var + (INT16 zero), INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.arr[i], INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAR(id.INT16(INT16.arr[i]), INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAR.VAR(INT16.var, INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAR.VAR(INT16.arr[i], INT16.var.2)
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.var, INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.var + (INT16 zero), INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAL.VAR(INT16.arr[i], INT16.arr.2[i])
+          clobber.vars()
+          assert.INT16.VAL.VAR(id.INT16(INT16.arr[i]), INT16.arr.2[i])
+          clobber.vars()
+          assert.INT16.VAR.VAR(INT16.var, INT16.arr[i])
+          clobber.vars()
+          assert.INT16.VAR.VAR(INT16.arr[i], INT16.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  INT32
+          assert.INT32.VAL.VAL(INT32.var, INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var + (INT32 zero), INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.arr[i], INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAL(id.INT32(INT32.arr[i]), INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.var, INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.arr[i], INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var, INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var + (INT32 zero), INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.arr[i], INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAL.VAL(id.INT32(INT32.arr[i]), INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.var, INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.arr[i], INT32.var.2 + (INT32 zero))
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var, INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var + (INT32 zero), INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.arr[i], INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAL.VAL(id.INT32(INT32.arr[i]), INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.var, INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.arr[i], INT32.arr.2[i])
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var, id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.var + (INT32 zero), id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAL.VAL(INT32.arr[i], id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAL.VAL(id.INT32(INT32.arr[i]), id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.var, id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAR.VAL(INT32.arr[i], id.INT32(INT32.var.2))
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.var, INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.var + (INT32 zero), INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.arr[i], INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAR(id.INT32(INT32.arr[i]), INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAR.VAR(INT32.var, INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAR.VAR(INT32.arr[i], INT32.var.2)
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.var, INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.var + (INT32 zero), INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAL.VAR(INT32.arr[i], INT32.arr.2[i])
+          clobber.vars()
+          assert.INT32.VAL.VAR(id.INT32(INT32.arr[i]), INT32.arr.2[i])
+          clobber.vars()
+          assert.INT32.VAR.VAR(INT32.var, INT32.arr[i])
+          clobber.vars()
+          assert.INT32.VAR.VAR(INT32.arr[i], INT32.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  INT64
+          assert.INT64.VAL.VAL(INT64.var, INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.arr[i], INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.var, INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.arr[i], INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.var, INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var, INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var + (INT64 zero), INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.arr[i], INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL(id.INT64(INT64.arr[i]), INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.var, INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.arr[i], INT64.arr.2[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var, id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.var + (INT64 zero), id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAL.VAL(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.var, id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAR.VAL(INT64.arr[i], id.INT64(INT64.var.2))
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.var, INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.var + (INT64 zero), INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.arr[i], INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAR(id.INT64(INT64.arr[i]), INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAR.VAR(INT64.var, INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAR.VAR(INT64.arr[i], INT64.var.2)
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.var, INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.var + (INT64 zero), INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR(INT64.arr[i], INT64.arr.2[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR(id.INT64(INT64.arr[i]), INT64.arr.2[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR(INT64.var, INT64.arr[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR(INT64.arr[i], INT64.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  REAL32
+          assert.REAL32.VAL.VAL(REAL32.var, REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var + (REAL32 ROUND zero), REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.arr[i], REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAL(id.REAL32(REAL32.arr[i]), REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.var, REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.arr[i], REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var, REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var + (REAL32 ROUND zero), REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.arr[i], REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(id.REAL32(REAL32.arr[i]), REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.var, REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.arr[i], REAL32.var.2 + (REAL32 ROUND zero))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var, REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var + (REAL32 ROUND zero), REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.arr[i], REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAL(id.REAL32(REAL32.arr[i]), REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.var, REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.arr[i], REAL32.arr.2[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var, id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.var + (REAL32 ROUND zero), id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(REAL32.arr[i], id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAL.VAL(id.REAL32(REAL32.arr[i]), id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.var, id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAR.VAL(REAL32.arr[i], id.REAL32(REAL32.var.2))
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.var, REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.var + (REAL32 ROUND zero), REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.arr[i], REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAR(id.REAL32(REAL32.arr[i]), REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAR.VAR(REAL32.var, REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAR.VAR(REAL32.arr[i], REAL32.var.2)
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.var, REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.var + (REAL32 ROUND zero), REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAR(REAL32.arr[i], REAL32.arr.2[i])
+          clobber.vars()
+          assert.REAL32.VAL.VAR(id.REAL32(REAL32.arr[i]), REAL32.arr.2[i])
+          clobber.vars()
+          assert.REAL32.VAR.VAR(REAL32.var, REAL32.arr[i])
+          clobber.vars()
+          assert.REAL32.VAR.VAR(REAL32.arr[i], REAL32.arr.2[i])
+          clobber.vars()
+          --}}}
+          --{{{  REAL64
+          assert.REAL64.VAL.VAL(REAL64.var, REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.arr[i], REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.var, REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.arr[i], REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var, REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.arr[i], REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.var, REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAL.VAL(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.var, id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAR.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2))
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.var, REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.arr[i], REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAR.VAR(REAL64.var, REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAR.VAR(REAL64.arr[i], REAL64.var.2)
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.var, REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR(REAL64.arr[i], REAL64.arr.2[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR(REAL64.var, REAL64.arr[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR(REAL64.arr[i], REAL64.arr.2[i])
+          clobber.vars()
+          --}}}
+          --}}}
+    :
+    --}}}
+    --{{{  PROC proc.params.3()
+    PROC proc.params.3()
+      --{{{  variables
+      BYTE BYTE.var, BYTE.var.2, BYTE.var.3 :
+      BOOL BOOL.var, BOOL.var.2, BOOL.var.3 :
+      INT INT.var, INT.var.2, INT.var.3, INT.var.4, INT.var.5 :
+      INT16 INT16.var, INT16.var.2, INT16.var.3 :
+      INT32 INT32.var, INT32.var.2, INT32.var.3 :
+      INT64 INT64.var, INT64.var.2, INT64.var.3 :
+      REAL32 REAL32.var, REAL32.var.2, REAL32.var.3 :
+      REAL64 REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4, REAL64.var.5 :
+      [2]BYTE BYTE.arr, BYTE.arr.2, BYTE.arr.3 :
+      [2]BOOL BOOL.arr, BOOL.arr.2, BOOL.arr.3 :
+      [2]INT INT.arr, INT.arr.2, INT.arr.3, INT.arr.4, INT.arr.5 :
+      [2]INT16 INT16.arr, INT16.arr.2, INT16.arr.3 :
+      [2]INT32 INT32.arr, INT32.arr.2, INT32.arr.3 :
+      [2]INT64 INT64.arr, INT64.arr.2, INT64.arr.3 :
+      [2]REAL32 REAL32.arr, REAL32.arr.2, REAL32.arr.3 :
+      [2]REAL64 REAL64.arr, REAL64.arr.2, REAL64.arr.3, REAL64.arr.4, REAL64.arr.5 :
+      INT x :
+      INT i, j :
+      INT i2, i3, i4, i5 :
+      INT zero :
+      --}}}
+      --{{{  PROC clobber.vars()
+      PROC clobber.vars()
+        SEQ
+          x := id(27)
+          i := id(1)
+          j := id(i)
+          i2 := id(i)
+          i3 := id(i2)
+          i4 := id(i3)
+          i5 := id(i4)
+          zero := id(0)
+          BYTE.var, BYTE.var.2, BYTE.var.3 := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+          BOOL.var, BOOL.var.2, BOOL.var.3 := TRUE, TRUE, TRUE
+          INT.var, INT.var.2, INT.var.3, INT.var.4 := 99, 99, 99, 99
+          INT16.var, INT16.var.2, INT16.var.3 := 99(INT16), 99(INT16), id.INT16(99(INT16))
+          INT32.var, INT32.var.2, INT32.var.3 := 99(INT32), 99(INT32), id.INT32(99(INT32))
+          INT64.var, INT64.var.2, INT64.var.3 := 99(INT64), 99(INT64), 99(INT64)
+          REAL32.var, REAL32.var.2, REAL32.var.3 := 99.0(REAL32), 99.0(REAL32), id.REAL32(99.0(REAL32))
+          REAL64.var, REAL64.var.2, REAL64.var.3, REAL64.var.4 := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+          INT.var.5, REAL64.var.5 := 99, 99.0(REAL64)
+          SEQ i = 0 FOR 2
+            SEQ
+              BYTE.arr[i], BYTE.arr.2[i], BYTE.arr.3[i] := BYTE 99, BYTE 99, id.BYTE(BYTE 99)
+              BOOL.arr[i], BOOL.arr.2[i], BOOL.arr.3[i] := TRUE, TRUE, id.BOOL(TRUE)
+              INT.arr[i], INT.arr.2[i], INT.arr.3[i3], INT.arr.4[i4] := 99, 99, 99, 99
+              INT16.arr[i], INT16.arr.2[i], INT16.arr.3[i] := 99(INT16), 99(INT16), id.INT16(99(INT16))
+              INT32.arr[i], INT32.arr.2[i], INT32.arr.3[i] := 99(INT32), 99(INT32), id.INT32(99(INT32))
+              INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i3] := 99(INT64), 99(INT64), 99(INT64)
+              REAL32.arr[i], REAL32.arr.2[i] := 99.0(REAL32), 99.0(REAL32)
+              REAL32.arr.3[i] := id.REAL32(99.0(REAL32))
+              REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i3], REAL64.arr.4[i4] := 99.0(REAL64), 99.0(REAL64), 99.0(REAL64), 99.0(REAL64)
+              INT.arr.5[i5], REAL64.arr.5[i5] := 99, 99.0(REAL64)
+      :
+      --}}}
+      SEQ
+        clobber.vars()
+        --{{{  trebles.with.ASSERT
+        --{{{  VAL VAL VAL
+        PROC assert.BOOL.VAL.VAL.VAL(VAL BOOL x1, x2, x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAL.VAL(VAL BYTE x1, x2, x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAL.VAL(VAL INT x1, x2, x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAL.VAL.VAL(VAL INT16 x1, x2, x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAL.VAL(VAL INT32 x1, x2, x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAL.VAL(VAL INT64 x1, x2, x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAL.VAL(VAL REAL32 x1, x2, x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAL.VAL(VAL REAL64 x1, x2, x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAR VAL
+        PROC assert.BOOL.VAR.VAR.VAL(BOOL x1, x2, VAL BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAR.VAL(BYTE x1, x2, VAL BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAR.VAL(INT x1, x2, VAL INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAR.VAR.VAL(INT16 x1, x2, VAL INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAR.VAL(INT32 x1, x2, VAL INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAR.VAL(INT64 x1, x2, VAL INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAR.VAL(REAL32 x1, x2, VAL REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAR.VAL(REAL64 x1, x2, VAL REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAL VAR VAL
+        PROC assert.BOOL.VAL.VAR.VAL(VAL BOOL x1, BOOL x2, VAL BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAR.VAL(VAL BYTE x1, BYTE x2, VAL BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAR.VAL(VAL INT x1, INT x2, VAL INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAL.VAR.VAL(VAL INT16 x1, INT16 x2, VAL INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAR.VAL(VAL INT32 x1, INT32 x2, VAL INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAR.VAL(VAL INT64 x1, INT64 x2, VAL INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAR.VAL(VAL REAL32 x1, REAL32 x2, VAL REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAR.VAL(VAL REAL64 x1, REAL64 x2, VAL REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAL VAL
+        PROC assert.BOOL.VAR.VAL.VAL(BOOL x1, VAL BOOL x2, x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAL.VAL(BYTE x1, VAL BYTE x2, x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAL.VAL(INT x1, VAL INT x2, x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAR.VAL.VAL(INT16 x1, VAL INT16 x2, x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAL.VAL(INT32 x1, VAL INT32 x2, x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAL.VAL(INT64 x1, VAL INT64 x2, x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAL.VAL(REAL32 x1, VAL REAL32 x2, x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAL.VAL(REAL64 x1, VAL REAL64 x2, x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAL VAL VAR
+        PROC assert.BOOL.VAL.VAL.VAR(VAL BOOL x1, x2, BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAL.VAR(VAL BYTE x1, x2, BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAL.VAR(VAL INT x1, x2, INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAL.VAL.VAR(VAL INT16 x1, x2, INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAL.VAR(VAL INT32 x1, x2, INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAL.VAR(VAL INT64 x1, x2, INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAL.VAR(VAL REAL32 x1, x2, REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAL.VAR(VAL REAL64 x1, x2, REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAR VAR
+        PROC assert.BOOL.VAR.VAR.VAR(BOOL x1, x2, BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAR.VAR(BYTE x1, x2, BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAR.VAR(INT x1, x2, INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAR.VAR.VAR(INT16 x1, x2, INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAR.VAR(INT32 x1, x2, INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAR.VAR(INT64 x1, x2, INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAR.VAR(REAL32 x1, x2, REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAR.VAR(REAL64 x1, x2, REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAL VAR VAR
+        PROC assert.BOOL.VAL.VAR.VAR(VAL BOOL x1, BOOL x2, BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAL.VAR.VAR(VAL BYTE x1, BYTE x2, BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAL.VAR.VAR(VAL INT x1, INT x2, INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAL.VAR.VAR(VAL INT16 x1, INT16 x2, INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAL.VAR.VAR(VAL INT32 x1, INT32 x2, INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAL.VAR.VAR(VAL INT64 x1, INT64 x2, INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAL.VAR.VAR(VAL REAL32 x1, REAL32 x2, REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAL.VAR.VAR(VAL REAL64 x1, REAL64 x2, REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --{{{  VAR VAL VAR
+        PROC assert.BOOL.VAR.VAL.VAR(BOOL x1, VAL BOOL x2, BOOL x3)
+          SEQ
+            local.check.BOOL(x1, TRUE)
+            local.check.BOOL(x2, TRUE)
+            local.check.BOOL(x3, TRUE)
+        :
+        PROC assert.BYTE.VAR.VAL.VAR(BYTE x1, VAL BYTE x2, BYTE x3)
+          SEQ
+            local.check.BYTE(x1, 99(BYTE))
+            local.check.BYTE(x2, 99(BYTE))
+            local.check.BYTE(x3, 99(BYTE))
+        :
+        PROC assert.INT.VAR.VAL.VAR(INT x1, VAL INT x2, INT x3)
+          SEQ
+            local.check.INT(x1, 99)
+            local.check.INT(x2, 99)
+            local.check.INT(x3, 99)
+        :
+        PROC assert.INT16.VAR.VAL.VAR(INT16 x1, VAL INT16 x2, INT16 x3)
+          SEQ
+            local.check.INT16(x1, 99(INT16))
+            local.check.INT16(x2, 99(INT16))
+            local.check.INT16(x3, 99(INT16))
+        :
+        PROC assert.INT32.VAR.VAL.VAR(INT32 x1, VAL INT32 x2, INT32 x3)
+          SEQ
+            local.check.INT32(x1, 99(INT32))
+            local.check.INT32(x2, 99(INT32))
+            local.check.INT32(x3, 99(INT32))
+        :
+        PROC assert.INT64.VAR.VAL.VAR(INT64 x1, VAL INT64 x2, INT64 x3)
+          SEQ
+            local.check.INT64(x1, 99(INT64))
+            local.check.INT64(x2, 99(INT64))
+            local.check.INT64(x3, 99(INT64))
+        :
+        PROC assert.REAL32.VAR.VAL.VAR(REAL32 x1, VAL REAL32 x2, REAL32 x3)
+          SEQ
+            local.check.REAL32(x1, 99.0(REAL32))
+            local.check.REAL32(x2, 99.0(REAL32))
+            local.check.REAL32(x3, 99.0(REAL32))
+        :
+        PROC assert.REAL64.VAR.VAL.VAR(REAL64 x1, VAL REAL64 x2, REAL64 x3)
+          SEQ
+            local.check.REAL64(x1, 99.0(REAL64))
+            local.check.REAL64(x2, 99.0(REAL64))
+            local.check.REAL64(x3, 99.0(REAL64))
+        :
+        --}}}
+        --}}}
+        SEQ
+          --{{{  trebles.with.ASSERT
+          --   BOOL and BYTE are done in cgtest26
+          --{{{  INT
+          --{{{  last param is a VAL, variable
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, expression
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.arr.2[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.var.2, INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.arr.2[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.arr[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.var.3 + (INT zero))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, array
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, fn
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.var.2 + (INT zero), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], INT.arr.2[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var, id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.var + (INT zero), id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(INT.arr[i], id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAL.VAL(id.INT(INT.arr[i]), id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.var, id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAL.VAL(INT.arr[i], id.INT(INT.var.2), id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.var.2, id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var, INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.var + (INT zero), INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(INT.arr[i], INT.arr.2[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAL.VAR.VAL(id.INT(INT.arr[i]), INT.arr.2[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.var, INT.arr[i], id.INT(INT.var.3))
+          clobber.vars()
+          assert.INT.VAR.VAR.VAL(INT.arr[i], INT.arr.2[i], id.INT(INT.var.3))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, variable
+          assert.INT.VAL.VAL.VAR(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.var.2 + (INT zero), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], id.INT(INT.var.2), INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var + (INT zero), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(id.INT(INT.arr[i]), INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.var, INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.arr[i], INT.var.2, INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var + (INT zero), INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(id.INT(INT.arr[i]), INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.var, INT.arr[i], INT.var.3)
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.arr[i], INT.arr.2[i], INT.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, array
+          assert.INT.VAL.VAL.VAR(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.var.2 + (INT zero), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var, id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.var + (INT zero), id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(INT.arr[i], id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAL.VAR(id.INT(INT.arr[i]), id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.var, id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAL.VAR(INT.arr[i], id.INT(INT.var.2), INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var + (INT zero), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(id.INT(INT.arr[i]), INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.var, INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.arr[i], INT.var.2, INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.var + (INT zero), INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAL.VAR.VAR(id.INT(INT.arr[i]), INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.var, INT.arr[i], INT.arr.3[i])
+          clobber.vars()
+          assert.INT.VAR.VAR.VAR(INT.arr[i], INT.arr.2[i], INT.arr.3[i])
+          clobber.vars()
+          --}}}
+          --}}}
+          --   IN16 and INT32 are done in cgtest26
+          --{{{  INT64
+          --{{{  last param is a VAL, variable
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, expression
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.arr.2[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.arr[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.var.3 + (INT64 zero))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, array
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, fn
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.var.2 + (INT64 zero), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], INT64.arr.2[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var, id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.var + (INT64 zero), id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAL(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.var, id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAL(INT64.arr[i], id.INT64(INT64.var.2), id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.var.2, id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var, INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.var + (INT64 zero), INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(INT64.arr[i], INT64.arr.2[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAL(id.INT64(INT64.arr[i]), INT64.arr.2[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.var, INT64.arr[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAL(INT64.arr[i], INT64.arr.2[i], id.INT64(INT64.var.3))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, variable
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], id.INT64(INT64.var.2), INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var + (INT64 zero), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(id.INT64(INT64.arr[i]), INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.var, INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.arr[i], INT64.var.2, INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var + (INT64 zero), INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(id.INT64(INT64.arr[i]), INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.var, INT64.arr[i], INT64.var.3)
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.arr[i], INT64.arr.2[i], INT64.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, array
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.var.2 + (INT64 zero), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var, id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.var + (INT64 zero), id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(INT64.arr[i], id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAL.VAR(id.INT64(INT64.arr[i]), id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.var, id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAL.VAR(INT64.arr[i], id.INT64(INT64.var.2), INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var + (INT64 zero), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(id.INT64(INT64.arr[i]), INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.var, INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.arr[i], INT64.var.2, INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.var + (INT64 zero), INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAL.VAR.VAR(id.INT64(INT64.arr[i]), INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.var, INT64.arr[i], INT64.arr.3[i])
+          clobber.vars()
+          assert.INT64.VAR.VAR.VAR(INT64.arr[i], INT64.arr.2[i], INT64.arr.3[i])
+          clobber.vars()
+          --}}}
+          --}}}
+          --   REAL32 is done in cgtest26
+          --{{{  REAL64
+          --{{{  last param is a VAL, variable
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, expression
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3 + (REAL64 ROUND zero))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, array
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAL, fn
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], REAL64.arr.2[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAL(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.var, id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAL(REAL64.arr[i], id.REAL64(REAL64.var.2), id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.var.2, id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var, REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAL(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.var, REAL64.arr[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAL(REAL64.arr[i], REAL64.arr.2[i], id.REAL64(REAL64.var.3))
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, variable
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.var, REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.arr[i], REAL64.var.2, REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.var, REAL64.arr[i], REAL64.var.3)
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.var.3)
+          clobber.vars()
+          --}}}
+          --{{{  last param is a VAR, array
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.var.2 + (REAL64 ROUND zero), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var, id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.var + (REAL64 ROUND zero), id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAL.VAR(id.REAL64(REAL64.arr[i]), id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.var, id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAL.VAR(REAL64.arr[i], id.REAL64(REAL64.var.2), REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(id.REAL64(REAL64.arr[i]), REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.var, REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.arr[i], REAL64.var.2, REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.var + (REAL64 ROUND zero), REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAL.VAR.VAR(id.REAL64(REAL64.arr[i]), REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.var, REAL64.arr[i], REAL64.arr.3[i])
+          clobber.vars()
+          assert.REAL64.VAR.VAR.VAR(REAL64.arr[i], REAL64.arr.2[i], REAL64.arr.3[i])
+          clobber.vars()
+          --}}}
+          --}}}
+          --}}}
+    :
+    --}}}
+    --{{{  PROC proc.params()
+    PROC proc.params()
+      SEQ
+        proc.params.0()
+        proc.params.1()
+        proc.params.2()
+        proc.params.3()
+    :
+    --}}}
+    proc.params()
+    --}}}
+    finish ()
+:
