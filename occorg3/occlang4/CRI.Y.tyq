@@ -1,0 +1,285 @@
+
+abbreviation = specifier name IS element :
+| name IS element :
+| VAL specifier name IS expression :
+| VAL name IS expression :
+
+action = assignment | input | output
+
+actual = element | expression
+
+allocation = PLACE name AT expression :
+
+alternation = ALT
+                { alternative }
+| ALT replicator
+    alternative
+| PRI ALT
+    { alternative }
+| PRI ALT replicator
+    alternative
+
+alternative = guarded_alternative | alternation
+| specification
+  alternative
+| channel ? CASE
+    { variant }
+| boolean & channel ? CASE
+    { variant }
+
+andor_expression = andor_expression andor_operator operand
+| operand andor_operator operand
+
+array_type = [ expression ] type
+
+assignment = variable := expression
+| variable_list := expression_list
+
+base = expression
+
+block_definition = PROC name ( {o , formal } )
+                     procedure_body
+                   :
+| {1 , data_type } FUNCTION name ( {o , formal } )
+    function_body
+  :
+
+block_definition_list = block_definition
+| block_definition_list
+  block_definition
+
+boolean =  expression
+
+byte = ' character '
+
+case_expression = expression
+
+case_input = channel ? CASE
+               { variant }
+
+channel = element
+
+choice = guarded_choice
+| conditional
+| specification
+  choice
+
+comms_type = CHAN OF protocol
+| TIMER
+| PORT OF type
+
+conditional = IF
+                { choice }
+| IF replicator
+    choice
+
+construction = sequence | conditional | selection | loop
+| parallel | alternation
+
+conversion = primitive_type operand
+| primitive_type ROUND operand
+| primitive_type TRUNC operand
+
+count = expression
+
+counting_type = BYTE
+| INT
+| INT16
+| INT32
+| INT64
+
+data_type = counting_type
+| BOOL
+| REAL32
+| REAL64
+
+declaration = type {1 , name } :
+
+definition = PROTOCOL name IS simple_protocol :
+| PROTOCOL name IS sequential_protocol :
+| PROTOCOL name
+    CASE
+      { tagged_protocol }
+  :
+| ANY FUNCTION name ( )
+    function_body
+  :
+| {1 , data_type } FUNCTION name ( {o , formal } ) IS expression_list :
+| specifier name RETYPES element :
+| VAL specifier name RETYPES expression :
+| block_definition
+
+delayed_input = timer ? AFTER expression
+
+digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+
+element = element [ subscript ]
+| [ element FROM subscript FOR subscript ]
+| name
+
+exponent = + digits | - digits
+
+expression = monadic_operator operand
+| operand dyadic_operator operand
+| andor_expression
+| conversion
+| operand
+| MOSTPOS data_type
+| MOSTNEG data_type
+
+expression_list = name ( {o , expression } )
+| {1 , expression }
+
+formal = specifier {1 , name } | VAL specifier {1 , name }
+
+function_body = value_process
+
+guard = input
+| boolean & input
+| boolean & SKIP
+
+guarded_alternative = guard
+                        process
+
+guarded_choice = boolean
+                   process
+
+hex_digit = digit | A | B | C | D | E | F
+
+input = channel ? variable
+| channel ? input_item
+| channel ? {1 ; input_item }
+| channel ? CASE tagged_list
+| timer_input
+| delayed_input
+| port ? variable
+
+input_item = variable | variable :: variable
+
+instance = name ( {o , actual } )
+
+integer = digits | # hex_digits
+
+literal = integer
+| byte
+| integer ( data_type )
+| byte ( data_type )
+| real ( data_type )
+| string
+| TRUE | FALSE
+
+loop = WHILE boolean
+         process
+
+operand = element | literal | table | ( expression )
+| name ( {o , expression } )
+
+option = {1 , case_expression }
+           process
+| ELSE
+    process
+| specification
+  option
+
+output = channel ! expression
+| channel ! output_item
+| channel ! {1 ; output_item }
+| channel ! tag
+| channel ! tag ; {1 ; output_item }
+| port ! expression
+
+output_item = expression | expression :: expression
+
+parallel = PAR
+             { process }
+| PAR replicator
+    process
+| PRI PAR
+    { process }
+| PRI PAR replicator
+    process
+| placedpar
+
+placedpar = PLACED PAR
+              { placedpar }
+| PLACED PAR replicator
+    placedpar
+| PROCESSOR expression
+    process
+
+port = element
+
+primitive_type = comms_type
+| data_type
+
+procedure_body = process
+
+process = SKIP | STOP | action | construction | instance | case_input
+| specification
+  process
+| allocation
+  process
+
+program = process
+| block_definition_list
+
+protocol = name | simple_protocol | ANY
+
+real = digits_digits | digits_digitsEexponent
+
+replicator =  name = base FOR count
+
+selection = CASE selector
+              { option }
+
+selector = expression
+
+sequence = SEQ
+             { process }
+| SEQ replicator
+    process
+
+sequential_protocol = {1 ; simple_protocol }
+
+simple_protocol = type | counting_type :: [] type
+
+specification = declaration | abbreviation | definition
+
+specifier = primitive_type
+| [] specifier
+| [ expression ] specifier
+
+subscript =  expression
+
+table = table [ subscript ]
+| [ {1 , expression } ]
+| [ table FROM subscript FOR count ]
+
+tag = name
+
+tagged_list = tag | tag ; {1 ; input_item }
+
+tagged_protocol = tag | tag ; sequential_protocol
+
+timer = element
+
+timer_input = timer ? variable
+
+type = primitive_type | array_type
+
+valof = VALOF
+          process
+          RESULT expression_list
+| specification
+  valof
+
+value_process = valof
+
+variable = element
+
+variable_list = {1 , variable }
+
+variant = tagged_list
+            process
+| specification
+  variant
