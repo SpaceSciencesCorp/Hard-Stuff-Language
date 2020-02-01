@@ -1,0 +1,11 @@
+n=$1
+if [ "$n" = "" ] ; then exit 1 ; fi
+nm=$(($n-1))
+echo = = = Level 0 = = =
+../../S/lslev0 x
+j=0
+while [ $j -lt $n ] ; do
+j=$(($j+1))
+echo = = = Level $j = = =
+../../S/lslevi $j x
+done

@@ -1,0 +1,4 @@
+n=$1
+m=$2
+echo last $m of $n: 1>&2
+head -n $n des.lst | tail -n $m | sed -e's/^.*[[:space:]]\([^[:space:]][^[:space:]]*\)[.]des$/\1/'

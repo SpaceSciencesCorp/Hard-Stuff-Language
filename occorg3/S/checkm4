@@ -1,0 +1,11 @@
+step=$1
+inp=$2
+ins=$3
+insn=$4
+last=$(echo $((`wc -l <$inp`-$step)))
+echo $step $inp $ins $insn $last >tyog.txt
+head -n $step $inp
+echo -e -n "    --{{{  $insn\r\n"
+cat $ins
+echo -e -n "    --}}}\r\n"
+tail -n $last $inp

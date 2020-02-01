@@ -1,0 +1,1 @@
+sed -e's/$//' ../../SSC/kroc/kroc-master/tests/cgtests/$1

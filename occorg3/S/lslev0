@@ -1,0 +1,5 @@
+cat levp9/0.txt
+if [ "$1" = "" ] ; then
+echo -e -n " . . . level 0 syntactic objects. Hit to continue: "
+read line
+fi

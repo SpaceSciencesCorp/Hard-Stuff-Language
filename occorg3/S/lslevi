@@ -1,0 +1,8 @@
+n=$1
+if [ "$1" = "" ] ; then exit 1 ; fi
+nm=$(($n-1))
+for i in `cat levp9/$n.txt` ; do if ! grep -q "\<$i\>" levp9/$nm.txt ; then echo $i ; fi ; done
+if [ "$2" = "" ] ; then
+echo -e -n " . . . level $n syntactic objects. Hit to continue: "
+read line
+fi

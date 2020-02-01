@@ -1,0 +1,6 @@
+last=$(echo $((`wc -l <cgtest00.oci`-4)))
+head -n 4 cgtest00.oci
+echo -e -n "  --{{{  cgmain.occ\r\n"
+cat CGMAIA2.OCC
+echo -e -n "  --}}}\r\n"
+tail -n $last cgtest00.oci

@@ -1,0 +1,1 @@
+( ../S/lslevi 3 x ; ../S/lslevi 10 x ) > ../tyog.txt ; cat ../occlang7-recurse.txt | while read line ; do j=`echo $line | sed -e"s/ .*$//"` ; if ! grep -q "\<$j\>" ../tyog.txt ; then echo $line ; fi ; done

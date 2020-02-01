@@ -1,0 +1,2 @@
+../S/mkCRI `grep -n "^%%" OCCAMLIB.Y | sed -e's/^\(.*\):.*$/\1/'` OCCAMLIB.Y > CRI-v.crlf
+sed -e$'s/\r$//' CRI-v.crlf | sed -e's/^;$//' | sed -e's/ : / = /' | sed -e'/printf/d' > CRI.nl

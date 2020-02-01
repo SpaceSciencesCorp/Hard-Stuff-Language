@@ -1,0 +1,7 @@
+n=$1
+nm=$(($n-1))
+echo $nm to $n step:
+for j in `ls CRInovp9/` ; do for i in `cat CRInovp9/$j` ; do if ! grep -q "\<${i}\>" levp9/$nm.txt ; then if [ $i != $j ] ; then echo $i ; fi ; fi ; done > temp9/$j ; done
+for i in `ls temp9` ; do if [ `wc -c < temp9/$i` -eq '0' ] ; then echo $i ; fi ; done > levp9/$n.txt
+wc levp9/*
+for i in `cat levp9/$n.txt` ; do if ! grep -q "\<$i\>" levp9/$nm.txt ; then echo $i ; fi ; done

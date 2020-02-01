@@ -1,0 +1,2 @@
+echo "Run from CRInovptgt" >&2
+for j in `ls` ; do echo -e -n "$j = " ; for i in `cat $j` ; do if [ "$i" = "|" ] ; then echo ; echo -e -n "$j = " ; else echo -e -n "$i " ; fi ; done ; echo ; done

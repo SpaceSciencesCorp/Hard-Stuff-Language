@@ -1,0 +1,6 @@
+cd occlang7
+../S/checkm0 3 ../sources/times.occ ../sources/hostio.inc hostio.inc > d7205a-times1.occ 
+../S/rmblankl d7205a-times1.occ > d7205a-times2.occ
+./OCCAMLIB-COMPILER < d7205a-times2.occ > d7205a-times2.out 2>d7205a-times2.err
+tail d7205a-times2.out
+cd ..

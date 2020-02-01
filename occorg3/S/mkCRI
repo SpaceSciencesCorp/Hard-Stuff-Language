@@ -1,0 +1,7 @@
+bgnm=$1
+endp=$2
+Y=$3
+end=$(($endp-1)) 
+len=$((${end}-$bgnm))
+echo $bgnm $endp $Y $end $len 1>&2
+head -n $end $Y | tail -n $len

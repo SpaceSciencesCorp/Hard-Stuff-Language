@@ -1,0 +1,373 @@
+echo 'oc20refman.pdf'
+echo '(Source [I]) Copy paste into Mac TextEdit and save'
+echo 'occlang/crippled-syntax-text.txt' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Open with nano -w, tweak to force store, save as DOS line ends'
+echo 'occlang/crippled-syntax-text2.txt' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Hand convert to equivalent to [I] G.2 Ordered syntax, page 86-90' ;
+echo 'occlang/CRI.txt' ; echo -e -n "================= hit to continue: " ; read line
+echo 'convert DOS line ends to Unix line ends'
+echo 'occlang/CRI.nl' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To check that this worked, the next hit will run:'
+echo "sed -e$'s/$/\r/' occlang/CRI.nl | diff -s - occlang/CRI.txt"
+echo -e -n "================= hit to continue: " ; read line
+sed -e$'s/$/\r/' occlang/CRI.nl | diff -s - occlang/CRI.txt
+echo '===============' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo '(A) 2018-05-14 occlang3/CRI.nl from Manual BNF (reference [I])'
+echo ''
+echo 'SUBSTANTIVE CHANGE'
+echo ''
+echo '( value.process'
+echo ')'
+echo 'is REMOVED from the definitions of operand and expression.list .'
+echo ''
+echo 'Summary: In-line value process is no longer allowed, thus allowing sub-line'
+echo 'and multi-line syntactic objects to be strictly distinguished by descent.'
+echo '(This will make no essential syntactic change because it will be'
+echo 'equivalently replaced by ANY FUNCTION, below.)'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'ORGANIZATIONAL CHANGES'
+echo ''
+echo 'New syntactic objects'
+echo 'comms.type'
+echo 'counting.type'
+echo 'data.type'
+echo 'are ADDED to subdivide primitive.type and restrict the BNF definitions of'
+echo 'definition, expression, literal, and simple.protocol .'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Summary: Types are subdivided to conform more closely to the description of'
+echo 'the semantics in [I]. The grammar is still more permissive than the'
+echo 'semantics, but not by as much. The descent is cleaned up, e.g. literal is'
+echo 'now SIMPLE rather than equivalent to expression.'
+echo '================' ; echo -e -n "================= hit to continue: " ; read line
+echo 'occlang3/CRI.txt'
+echo 'convert DOS line ends to Unix line ends'
+echo 'occlang3/CRI.nl' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To check that this worked, the next hit will run:'
+echo "sed -e$'s/$/\r/' occlang3/CRI.nl | diff -s - occlang3/CRI.txt"
+echo -e -n "================= hit to continue: " ; read line
+sed -e$'s/$/\r/' occlang3/CRI.nl | diff -s - occlang3/CRI.txt
+echo '===============' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'To display all the changes of (A), the next hit will run:'
+echo 'diff -u occlang/CRI.nl occlang3/CRI.nl | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang/CRI.nl occlang3/CRI.nl | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo '(B) 2018-05-25 occlang4/CRI.Y.tyo from occlang3/CRI.txt (essentially same as'
+echo 'CRI.nl)'
+echo ''
+echo 'SUBSTANTIVE CHANGES'
+echo ''
+echo 'Error fix in [I] BNF:'
+echo 'andor.expression'
+echo 'is ADDED to subdivide dyadic.operator form of expression, and expression'
+echo 'definition is expanded to accommodate.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Summary: The semantic description in [I]  7.2.6 Boolean expressions (page'
+echo '48) is inconsistent with the BNF stated in [I] because it allows parentheses'
+echo 'to be omitted in expressions involving AND and OR. Experimentation with the'
+echo 'compiler shows this works, with evaluation starting at the left, and even if'
+echo 'AND and OR are mixed. The change involving andor.expression models this'
+echo 'correctly.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Replacement for inline value process:'
+echo 'ANY FUNCTION name ( )'
+echo '  function_body'
+echo ':'
+echo 'is ADDED to definition of definition, in order to replace inline value'
+echo 'process. If placed directly above the line containing the former inline'
+echo 'value process, with a unique name called at that point, it behaves provably'
+echo 'the same.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Summary: See discussion of value process and function in [I].'
+echo ''
+echo 'Toplevel constructs:'
+echo 'block.definition'
+echo 'block.definition.list'
+echo 'program'
+echo 'are ADDED so that library-like program files can be compiled. A'
+echo 'block.definition is broken out of definition and contains multi-line PROC'
+echo 'and FUNCTION, a block.definition.list is a number of these on the same (top)'
+echo 'level, and a program may be a block.definition.list or a process.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Summary: This creates a descent category TOP above PROCESS. It is needed if'
+echo "libraries are to be compilable, using yacc's approach of starting with the"
+echo 'top syntactic object. The inclusion of both process and'
+echo 'block.definition.list in program will need to be modified later.'
+echo ''
+echo 'To display all the changes of (B), the next hit will run:'
+echo 'diff -u occlang3/CRI.txt occlang4/CRI.Y.tyo | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang3/CRI.txt occlang4/CRI.Y.tyo | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo '(C) 20180529 occlang4/CRI.txt from occlang4/CRI.Y.tyo (to format for yacc'
+echo 'grammar)'
+echo ''
+echo 'ORGANIZATIONAL CHANGES'
+echo ''
+echo 'Change interior . to _ (C style names) - CRI.Y.tyq' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, the next hit will run:'
+echo 'sed -e"s/[.]/_/g" occlang4/CRI.Y.tyo | diff -s - occlang4/CRI.Y.tyq'
+echo -e -n "================= hit to continue: " ; read line
+sed -e"s/[.]/_/g" occlang4/CRI.Y.tyo | diff -s - occlang4/CRI.Y.tyq
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Put single quotes around symbols, add start and end spaces - CRI.Z.tyr' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To do a confidence test on above, the next hit will run:'
+echo "sed -e\"s/'\([^=]\)'/\1/g\" -e's/^ //' -e$'s/ \r$/\r/' occlang4/CRI.Z.tyr | diff -s occlang4/CRI.Y.tyq -"
+echo -e -n "================= hit to continue: " ; read line
+sed -e"s/'\([^=]\)'/\1/g" -e's/^ //' -e$'s/ \r$/\r/' occlang4/CRI.Z.tyr | diff -s occlang4/CRI.Y.tyq -
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Change BNF definition = to : - CRI.Z' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, the next hit will run:'
+echo "sed -e'/^ [^[:space:]][^[:space:]]* =/s/ =/ :/' occlang4/CRI.Z.tyr | diff -s - occlang4/CRI.Z" 
+echo -e -n "================= hit to continue: " ; read line
+sed -e'/^ [^[:space:]][^[:space:]]* =/s/ =/ :/' occlang4/CRI.Z.tyr | diff -s - occlang4/CRI.Z 
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Remove single quotes from { } (not symbols) - CRIol2.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, the next hit will run:'
+echo "sed -e's/^ //' -e$'s/ \r$/\r/' -e\"s/'\([{}]\)'/\1/g\" occlang4/CRI.Z | diff -s - occlang4/CRIol2.Y"
+echo -e -n "================= hit to continue: " ; read line
+sed -e's/^ //' -e$'s/ \r$/\r/' -e"s/'\([{}]\)'/\1/g" occlang4/CRI.Z | diff -s - occlang4/CRIol2.Y
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'FOR THE FOLLOWING SIX, I DO NOT HAVE SIMPLE CONFIDENCE TESTS . . .'
+echo 'I SUGGEST THE CHECKER OPEN EACH FILE IN A SECOND SCREEN'
+echo '  AND CHECK FOR THE CLAIMED CHANGE.'
+echo 'Hand-reorder so that program is at top - CRI-20180525.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Name two-character symbols - CRI-curly.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Replace curly-bracket repeaters with new syntactic objects - CRI-nocurly.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Hand-add definitions of new _vlist, _olist, _clist, _slist objects - CRI-20180526.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Hand-insert NEWLINE, RIND, ROUTD, and definitions using lexer tokens - CRI.Y' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Remove fold comments using origami or sed - CRI.txt' ; echo -e -n "================= hit to continue: " ; read line
+echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'Summary: These changes though extensive, and involving new syntactic'
+echo 'objects, are only organizational. The end result is in a format that can be'
+echo 'handled by yacc. Spacing, newlines, and indentation are no longer'
+echo 'significant in the grammar, being handled by NEWLINE, RIND, and ROUTD'
+echo '(though left in for convenience of viewing).'
+echo '===================' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo '(D) 20180606 occlang4/OCCAMLIB.Y from occlang4/CRI.txt'
+echo ''
+echo 'The changes to follow are designed to get improved results from yacc at each'
+echo 'stage. They are organizational, not substantive, though they sometimes make'
+echo 'considerable differences in the grammar; these differences are eliminated by'
+echo 'semantic considerations, mainly declared type values.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Add ; line after each grammar definition; add tokens - OCCAMOLD.Y'
+echo 'The ; is a do-nothing C command for the program generated by yacc.'
+echo 'To display this change, the next hit will run:'
+echo "sed -e$'/^\r$/s/^/;/' occlang4/CRI.txt | diff - occlang4/OCCAMOLD.Y"
+echo -e -n "================= hit to continue: " ; read line
+sed -e$'/^\r$/s/^/;/' occlang4/CRI.txt | diff - occlang4/OCCAMOLD.Y
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'OCCAMOLD.Y fails yacc due to port, timer, element conflicts. 6 S/R, 25 R/R'
+echo 'process-only program; merge port, timer with channel - OCCAMOL2.Y'
+echo 'Successful yacc (here and below); 6 Shift/Reduce, 12 Reduce/Reduce' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display all the changes, the next hit will run:'
+echo 'diff -u occlang4/OCCAMOLD.Y occlang4/OCCAMOL2.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMOLD.Y occlang4/OCCAMOL2.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Add block_definition_list back to program - OCCA.Y'
+echo '6 Shift/Reduce, 21 Reduce/Reduce (9 extra due to program ambiguity)' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, the next hit will run:'
+echo 'diff -u occlang4/OCCAMOL2.Y occlang4/OCCA.Y'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMOL2.Y occlang4/OCCA.Y
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Remove process from program definition - OCCAMLIB-20180529.Y'
+echo '6 Shift/Reduce, 12 Reduce/Reduce (now LIB type only, no program ambiguity)' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, the next hit will run:'
+echo 'diff -u occlang4/OCCA.Y occlang4/OCCAMLIB-20180529.Y'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCA.Y occlang4/OCCAMLIB-20180529.Y
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Remove redundancies from definitions, remove variable_list - OCCAML1.Y'
+echo '4 Shift/Reduce, 8 Reduce/Reduce'
+echo -e -n "================= hit to continue: " ; read line
+echo 'To display all the changes, the next hit will run:'
+echo 'diff -u occlang4/OCCAMLIB-20180529.Y occlang4/OCCAML1.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMLIB-20180529.Y occlang4/OCCAML1.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Rename tag to scalar and include in element; new indef_type - OCCAMLIB-20180530.Y'
+echo '6 Shift/Reduce, 5 Reduce/Reduce' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display all the changes, the next hit will run:'
+echo 'diff -u occlang4/OCCAML1.Y occlang4/OCCAMLIB-20180530.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAML1.Y occlang4/OCCAMLIB-20180530.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Remove redundant channel '!' scalar from output - OCCAMLIB-201805312037.Y'
+echo '6 Shift/Reduce, 4 Reduce/Reduce - NOW ABLE TO TEST SAMPLE .occ FILES . . .' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, plus some code, the next hit will run:'
+echo 'diff -u occlang4/OCCAMLIB-20180530.Y occlang4/OCCAMLIB-201805312037.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMLIB-20180530.Y occlang4/OCCAMLIB-201805312037.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Add %glr-parser - OCCAMLIB-20180531.Y'
+echo '6 Shift/Reduce, 4 Reduce/Reduce' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display this change, plus some code, the next hit will run:'
+echo 'diff -u occlang4/OCCAMLIB-201805312037.Y occlang4/OCCAMLIB-20180531.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMLIB-201805312037.Y occlang4/OCCAMLIB-20180531.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Enter %dprec to two ambiguities - OCCAMLIB-20180604.Y'
+echo '6 Shift/Reduce, 4 Reduce/Reduce' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display these changes, the next hit will run:'
+echo 'diff -u occlang4/OCCAMLIB-20180531.Y occlang4/OCCAMLIB-20180604.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMLIB-20180531.Y occlang4/OCCAMLIB-20180604.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo 'Enter %dprec to one more ambiguity - OCCAMLIB.Y'
+echo '6 Shift/Reduce, 4 Reduce/Reduce' ; echo -e -n "================= hit to continue: " ; read line
+echo 'To display these changes, the next hit will run:'
+echo 'diff -u occlang4/OCCAMLIB-20180604.Y occlang4/OCCAMLIB.Y | more'
+echo -e -n "================= hit to continue: " ; read line
+diff -u occlang4/OCCAMLIB-20180604.Y occlang4/OCCAMLIB.Y | more
+echo '============= RUN DONE' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'Summary: Up until OCCAMLIB-201805312037 it is mostly removing redundant'
+echo 'parts of definitions (i.e. completely contained in other parts of the same'
+echo 'definition), plus scalar being used both for tag and for a name as an'
+echo 'element, which are always distinguishable by semantics of declarations.'
+echo 'After OCCAMLIB-201805312037, %glr-parser capability of yacc (actually bison)'
+echo 'permits multiple paths during ambiguities and, with preferences imposed by'
+echo '%dprec, handles them all correctly.'
+echo '======================' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo '(E) 20180531 OCCAMLIB.L development'
+echo ''
+echo 'Summary: The tokens are handled slightly different than in [I], but'
+echo 'equivalently. Actually they are more permissive, since uncounted lines'
+echo '(full-line comments, continuations, and Directives) do not take account of'
+echo 'indentation. Because of the removal of inline value processes, the remaining'
+echo 'lines always begin at even indentations, hence RIND and ROUTD as well as'
+echo 'NEWLINE. The handling of multi-line string literals is equivalent to that'
+echo 'defined in [I] 3.2 Literals (page 26). Directives are as defined in the'
+echo 'INMOS occam Toolset ([IOT1] section 25.10), and are not active here, but'
+echo 'treated as comments (e.g. #INCLUDE).'
+echo '========================' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'Fixup of OCCAMLIB.Y'
+echo ''
+echo 'Summary: One error was found: in tagged_protocol, the first variant (scalar'
+echo 'alone) needed to be followed by a NEWLINE. Oddly, the uncorrected version'
+echo 'was self-consistent (a bunch of lone tags on the same line), but'
+echo 'unrealizable for the case when the protocol ended with a lone tag.'
+echo '=====================' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'Reconstruction of a BNF from final OCCAMLIB.Y.'
+echo ''
+echo 'Summary: This reconstruction was comparatively simple. See the end of'
+echo 'Appendix 2. The reconstruction left actual, expression_list, and output with'
+echo '%dprec rankings.'
+echo '=======================' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'The references below are to y.output which is generated as described in'
+echo 'Tools above, which lists 262 rules (numbered 1 through 262) and 574 states'
+echo '(numbered 0 through 573). Of these states, eight exhibit ambiguities, all of'
+echo 'which are solved using %glr-parser, either via failure of one of the'
+echo 'branches or via a preference denoted by %dprec. Two of the eight states'
+echo 'exhibit two ambiguities each, thus the total number of ambiguities is ten,'
+echo 'but in each of the double-ambiguity cases, the two are related.'
+echo 'In the discussion below, the term "fixed token" will refer either to a'
+echo 'symbol or a keyword, to distinguish it from a "variable token" such as a'
+echo 'number or a name.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 84 conflicts: 1 shift/reduce'
+echo 'State 141 conflicts: 1 shift/reduce'
+echo ''
+echo 'These are basically the same, found in a formals sequence that can continue'
+echo 'with either a name or with a new type. A type is always a fixed token,'
+echo 'unlike a name, so one branch of %glr-parser will fail, with no need for'
+echo '%dprec.'
+echo ''
+echo 'Test files: small.occ, small2.occ, small3b.occ, small3c.occ.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 226 conflicts: 1 shift/reduce'
+echo ''
+echo 'This is a type followed by a name, and branches according as it is a type in'
+echo 'a declaration, or a specifier in a definition or an abbreviation (a RETYPES'
+echo 'or IS). The latter case always hits keywords RETYPES or IS before the colon,'
+echo 'so the branches are distinguished without %dprec.'
+echo ''
+echo 'Test file: small6.occ (both branches).'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 310 conflicts: 1 shift/reduce'
+echo ''
+echo 'This needs a %dprec to prefer the scalar branch over the element branch,'
+echo 'preventing wasted effort if there is a mere name before the semicolon in an'
+echo 'output.'
+echo ''
+echo 'Test files: small4.occ, small4b.occ.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 330 conflicts: 2 reduce/reduce'
+echo ''
+echo "In both cases (detecting a ')' or a ','), this is found ultimately only in"
+echo 'an instance (state 271), and is solved by a %dprec of actual element over'
+echo 'operand.'
+echo ''
+echo 'Test files: small5.occ, small5b.occ.'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 350 conflicts: 1 shift/reduce'
+echo ''
+echo 'This comes in from a lot of sources, but ultimately reduces to an'
+echo 'alternative, a choice, or an option. See small7.occ. It can be either a'
+echo 'conversion in a live line of code, not ending in a colon, or a type in a'
+echo 'declaration, ending in a colon. This distinction means a %dprec is not'
+echo 'needed.'
+echo ''
+echo 'Test file: small7.occ (both cases).'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 406 conflicts: 1 shift/reduce'
+echo ''
+echo 'Although apparently dissimilar, this arises because of the same aliasing in'
+echo 'an alternative, a choice, or an option as State 350 ambiguity. In one case'
+echo '(the live line) it is a member of a table, in the other it is a'
+echo 'two-dimensional type. Distinction is via the colon as in State 350.'
+echo ''
+echo 'Test file: small8.occ (both cases).'
+echo ''
+echo -e -n "================= hit to continue: " ; read line
+echo 'State 509 conflicts: 2 reduce/reduce'
+echo ''
+echo 'In this case, in an explicit FUNCTION IS, or a RESULT or an ASSIGN, after'
+echo 'the function instance with the parenthesized expression_olist is closed by'
+echo 'an upcoming colon or NEWLINE, a %dprec prefers interpreting it as an'
+echo 'expression_list rather than an operand. This is all that is needed when it'
+echo 'is "naked", not followed by an operator.'
+echo ''
+echo 'Test files: small3.occ, small3b.occ, small3c.occ.'
+echo '==============' ; echo -e -n "================= hit to continue: " ; read line
+echo ''
+echo 'Revision from occlang5 to occlang6'
+echo ''
+echo 'This refers to a one-item revision that completes the definition of'
+echo 'dyadic_operator. The language as defined in 2018 was consistent, but not'
+echo 'complete, because it was missing the symbol '=' (equals) in dyadic_operator.'
+echo 'This was the only omission (careful check of symbols and keywords in [I]).'
+echo 'New code is in directory occlang6.'
+echo ''
+echo 'The addition, one line at end of dyadic_operator, is found in the current'
+echo 'Appendix 5 B and C. It does not change the descent, and its changes to the'
+echo 'Rules and States (and therefore to the numbering in Tests above) are'
+echo 'trivial.'
+echo '================ END' ; echo -e -n "================= hit to continue: " ; read line

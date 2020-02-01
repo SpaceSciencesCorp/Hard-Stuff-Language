@@ -1,0 +1,41 @@
+cd occlang7/CRInovptgt/
+../../S/mkalldef > ../alldefs.txt
+cd ../occlangn/CRInovptgt/
+../../../S/mkalldef > ../alldefs.txt
+cd ../../occlangp/CRInovptgt/
+../../../S/mkalldef > ../alldefs.txt
+cd ../../occleafn/CRInovptgt/
+../../../S/mkalldef > ../alldefs.txt
+cd ../../occleafp/CRInovptgt/
+../../../S/mkalldef > ../alldefs.txt
+cd ../../..
+cd occlang7
+echo At purelv >&2
+../S/lspurelv 12 > ../occlang7-levels.txt
+cd occlangn
+../../S/lspurel2 9 > ../../occlang7-occlangn-levels.txt
+cd ../occlangp
+../../S/lspurel2 5 > ../../occlang7-occlangp-levels.txt
+cd ../occleafn
+../../S/lspurel2 8 > ../../occlang7-occleafn-levels.txt
+cd ../occleafp
+../../S/lspurel2 4 > ../../occlang7-occleafp-levels.txt
+cd ../../
+cd occlang7
+echo At mkrecurs >&2
+../S/mkrecurs 12 > ../occlang7-recurse.txt
+cd occlangn
+echo At deep mkrecurs >&2
+../../S/mkrecurs 9 > ../../occlang7-occlangn-recurse.txt
+cd ../occlangp
+../../S/mkrecurs 5 > ../../occlang7-occlangp-recurse.txt
+cd ../occleafn
+../../S/mkrecurs 8 > ../../occlang7-occleafn-recurse.txt
+cd ../occleafp
+../../S/mkrecurs 4 > ../../occlang7-occleafp-recurse.txt
+cd ../..
+cd occlang7
+echo At mknocyrc >&2
+../S/mknocyrc > ../occlang7-recurse-not-3-10.txt
+../S/mkcyrc > ../occlang7-recurse-3-10.txt
+cd ..

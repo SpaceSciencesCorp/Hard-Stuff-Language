@@ -1,0 +1,4 @@
+yacc -v -d OCCAMLIB.Y
+lex OCCAMLIB.L
+yacc -d OCCAMLIB.Y
+gcc lex.yy.c y.tab.c -o OCCAMLIB-COMPILER

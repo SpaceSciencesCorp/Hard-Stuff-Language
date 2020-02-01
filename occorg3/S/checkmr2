@@ -1,0 +1,12 @@
+step=$1
+inp=$2
+last=$(echo $((`wc -l <$inp`-$step)))
+echo $step $inp $last >tyog.txt
+head -n $step $inp
+echo -e -n "  --{{{  cgmain.occ\r\n"
+cat CGMAIA2.OCC
+echo -e -n "  --}}}\r\n"
+echo -e -n "  --{{{  cgreal.occ\r\n"
+cat CGREAL2.OCC
+echo -e -n "  --}}}\r\n"
+tail -n $last $inp

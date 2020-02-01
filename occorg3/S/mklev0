@@ -1,0 +1,3 @@
+mkdir levp9
+mkdir temp9
+for i in `ls CRInovp9` ; do if [ `wc -c < CRInovp9/$i` -eq '0' ] ; then echo $i ; fi ; done > levp9/0.txt
