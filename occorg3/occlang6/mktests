@@ -1,0 +1,7 @@
+cp -pi ../../occlang6/OCCAMLIB-COMPILER .
+mkdir ljdtests
+mkdir cgtests
+for i in `ls ../ljdtests/` ; do j=`echo $i | sed -e's/^\(.*\)....$/\1/'` ; if `echo $i | grep -q "[A-Z]"` ; then ./OCCAMLIB-COMPILER <../ljdtests/$i >ljdtests/$j.OUT 2>ljdtests/$j.ERR ; echo $i $j.OUT $j.ERR ; else echo $i $j.out $j.err ; fi ; done
+for i in `ls ../ljdtests/` ; do j=`echo $i | sed -e's/^\(.*\)....$/\1/'` ; if `echo $i | grep -q "[A-Z]"` ; then echo $i $j.OUT $j.ERR ; else ./OCCAMLIB-COMPILER <../ljdtests/$i >ljdtests/$j.out 2>ljdtests/$j.err ; echo $i $j.out $j.err ; fi ; done
+for i in `ls ../cgtests/` ; do j=`echo $i | sed -e's/^\(.*\)....$/\1/'` ; if `echo $i | grep -q "[A-Z]"` ; then ./OCCAMLIB-COMPILER <../cgtests/$i >cgtests/$j.OUT 2>cgtests/$j.ERR ; echo $i $j.OUT $j.ERR ; else echo $i $j.out $j.err ; fi ; done
+for i in `ls ../cgtests/` ; do j=`echo $i | sed -e's/^\(.*\)....$/\1/'` ; if `echo $i | grep -q "[A-Z]"` ; then echo $i $j.OUT $j.ERR ; else ./OCCAMLIB-COMPILER <../cgtests/$i >cgtests/$j.out 2>cgtests/$j.err ; echo $i $j.out $j.err ; fi ; done

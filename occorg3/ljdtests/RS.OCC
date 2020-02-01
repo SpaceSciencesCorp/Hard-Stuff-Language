@@ -1,0 +1,102 @@
+--{{{  PROC RS1(VAL [32]INT DD, PD0, PD1, PD2, [32]INT SD0, SD1, SD2)
+-- Implements one step of Horner's method using input parity PDn
+-- and outputting next parity accumulator SDn,
+-- saving copy at end by ping-ponging the roles of P and S.
+-- It has a loop of four members to save PAR overhead in the calling
+-- procedure. Algebra is finite field of order 256:
+-- S0 :=   P0 + D
+-- S1 := A*P1 + D
+-- S2 := B*P2 + D
+-- A, B are sparse square 8x8 bit matrices, B = A^-1
+-- Sn, Pn, D are sets of 8-vectors. D changes each call to RS1 in calling
+-- procedure, but A and B stay the same. Sn accumulates one step
+-- (Horner's method). Note, in occam, /\ is bitwise AND, >< bitwise XOR,
+-- and # denotes hexadecimal.
+PROC RS1(VAL [32]INT DD, PD0, PD1, PD2, [32]INT SD0, SD1, SD2)
+  SEQ j = 0 FOR 4
+    VAL INT j8 IS j<<3 :
+    VAL [8]INT D IS [DD FROM j8 FOR 8] : -- DATA
+    VAL [8]INT P0 IS [PD0 FROM j8 FOR 8] : -- OLD PARITY
+    VAL [8]INT P1 IS [PD1 FROM j8 FOR 8] :
+    VAL [8]INT P2 IS [PD2 FROM j8 FOR 8] :
+    [8]INT S0 IS [SD0 FROM j8 FOR 8] : -- NEXT STEP PARITY
+    [8]INT S1 IS [SD1 FROM j8 FOR 8] :
+    [8]INT S2 IS [SD2 FROM j8 FOR 8] :
+    PAR
+      PAR i = 0 FOR 8
+        S0[i] := P0[i] >< D[i]
+      S1[7] := P1[6] >< D[7]
+      S1[6] := P1[5] >< D[6]
+      S1[5] := P1[4] >< D[5]
+      S1[4] := (P1[3] >< P1[7]) >< D[4]
+      S1[3] := (P1[2] >< P1[7]) >< D[3]
+      S1[2] := (P1[1] >< P1[7]) >< D[2]
+      S1[1] := P1[0] >< D[1]
+      S1[0] := P1[7] >< D[0]
+      S2[0] := P2[1] >< D[0]
+      S2[1] := (P2[2] >< P2[0]) >< D[1]
+      S2[2] := (P2[3] >< P2[0]) >< D[2]
+      S2[3] := (P2[4] >< P2[0]) >< D[3]
+      S2[4] := P2[5] >< D[4]
+      S2[5] := P2[6] >< D[5]
+      S2[6] := P2[7] >< D[6]
+      S2[7] := P2[0] >< D[7]
+:
+--}}}
+--{{{  RS(VAL INT Nd, Np, fullstep, VAL []BYTE D, []BYTE P)
+PROC RS(VAL INT Nd, Np, fullstep, VAL []BYTE D, []BYTE P)
+  SEQ
+    -- The following IF is an ASSERT; if any of the conditions fail, STOP
+    IF
+      (Nd = 9) AND (Np = 3) AND (fullstep > 0) AND ((fullstep/\#FFF) = 0)
+        SKIP
+    -- This ASSERTs that D outer dimension is Nd and P outer dimension is Np
+    IF
+      ((SIZE D) >= (Nd*fullstep)) AND ((SIZE P) >= (Np*fullstep))
+        SKIP
+    -- use 32-bit words (INTs)
+    VAL INT worddim IS fullstep>>2 : -- multiple of 1024=32*32
+    VAL INT n32by4byRSwordset IS worddim>>10 : -- 1024 word blocks
+    VAL []INT Dw0 RETYPES [D FROM 0 FOR fullstep] :
+    VAL []INT Dw1 RETYPES [D FROM fullstep FOR fullstep] :
+    VAL []INT Dw2 RETYPES [D FROM (2*fullstep) FOR fullstep] :
+    VAL []INT Dw3 RETYPES [D FROM (3*fullstep) FOR fullstep] :
+    VAL []INT Dw4 RETYPES [D FROM (4*fullstep) FOR fullstep] :
+    VAL []INT Dw5 RETYPES [D FROM (5*fullstep) FOR fullstep] :
+    VAL []INT Dw6 RETYPES [D FROM (6*fullstep) FOR fullstep] :
+    VAL []INT Dw7 RETYPES [D FROM (7*fullstep) FOR fullstep] :
+    VAL []INT Dw8 RETYPES [D FROM (8*fullstep) FOR fullstep] :
+    []INT Pw0 RETYPES [P FROM 0 FOR fullstep] :
+    []INT Pw1 RETYPES [P FROM fullstep FOR fullstep] :
+    []INT Pw2 RETYPES [P FROM (2*fullstep) FOR fullstep] :
+    -- Progress over all worddim by steps of 32 in 32-fold PAR
+    -- A set of [32]INT arrays amounts to 4 RSwordsets
+    SEQ k = 0 FOR n32by4byRSwordset
+      VAL INT kind IS k*1024 :
+      PAR j = 0 FOR 32
+        VAL INT jind IS kind + (j*32) :
+        VAL [32]INT D0 IS [Dw0 FROM jind FOR 32] :
+        VAL [32]INT D1 IS [Dw1 FROM jind FOR 32] :
+        VAL [32]INT D2 IS [Dw2 FROM jind FOR 32] :
+        VAL [32]INT D3 IS [Dw3 FROM jind FOR 32] :
+        VAL [32]INT D4 IS [Dw4 FROM jind FOR 32] :
+        VAL [32]INT D5 IS [Dw5 FROM jind FOR 32] :
+        VAL [32]INT D6 IS [Dw6 FROM jind FOR 32] :
+        VAL [32]INT D7 IS [Dw7 FROM jind FOR 32] :
+        VAL [32]INT D8 IS [Dw8 FROM jind FOR 32] :
+        [32]INT P0 IS [Pw0 FROM jind FOR 32] :
+        [32]INT P1 IS [Pw1 FROM jind FOR 32] :
+        [32]INT P2 IS [Pw2 FROM jind FOR 32] :
+        [32]INT S0, S1, S2 : -- ping-pong scratch
+        -- Each call to RS1 advances Horner's method for 4 RSwordsets
+        SEQ
+          RS1(D7, D8, D8, D8, S0, S1, S2) -- Repeating VAL formals allowed
+          RS1(D6, S0, S1, S2, P0, P1, P2) -- Then ping-pong roles of S and P
+          RS1(D5, P0, P1, P2, S0, S1, S2)
+          RS1(D4, S0, S1, S2, P0, P1, P2)
+          RS1(D3, P0, P1, P2, S0, S1, S2)
+          RS1(D2, S0, S1, S2, P0, P1, P2)
+          RS1(D1, P0, P1, P2, S0, S1, S2)
+          RS1(D0, S0, S1, S2, P0, P1, P2) -- Final answer ends up in P.
+:
+--}}}

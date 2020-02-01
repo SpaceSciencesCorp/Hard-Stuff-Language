@@ -1,0 +1,5 @@
+PROC yodel()
+  VAL z IS TRUE :
+  BOOL a :
+  a := z
+:

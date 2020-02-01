@@ -1,0 +1,6 @@
+REAL32 FUNCTION awk(REAL32 a, REAL32 b)
+  REAL32 FUNCTION whistle(REAL32 x) IS sin(x) :
+  VALOF
+    SKIP
+    RESULT whistle(b)
+:

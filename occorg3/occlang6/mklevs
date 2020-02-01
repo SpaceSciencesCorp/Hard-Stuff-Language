@@ -1,0 +1,19 @@
+../S/mklev0
+../S/mklevi 1
+../S/mklevi 2
+../S/mklevi 3
+../S/mkcy 84 16 >>levp9/3.txt
+../S/mklevi 4
+../S/mklevi 5
+../S/mklevi 6
+../S/mklevi 7
+../S/mklevi 8
+../S/mklevi 9
+../S/mklevi 10
+../S/mkcy 31 29 >>levp9/10.txt
+../S/mklevi 11
+../S/mklevi 12
+../S/mklevi 13
+rm -rf levp9/13.txt 
+echo Final:
+wc levp9/?.txt levp9/??.txt

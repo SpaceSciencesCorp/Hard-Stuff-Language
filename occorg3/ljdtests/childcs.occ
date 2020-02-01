@@ -1,0 +1,28 @@
+#INCLUDE "hostio.inc" --  -- contains SP protocol
+--{{{  PROC waitandtrigger(CHAN OF SP fmas, tmas)
+PROC waitandtrigger(CHAN OF SP fmas,
+  tmas)
+  INT thewait,
+    thetime:
+  [2]INT thewaits :
+  VAL INT thesize IS SIZE "Beware the jabberwock my son,* -- Start
+                          * the jaws that bite,* -- Example of middle
+                          * the claws that catch." : -- Example of end
+  TIMER clock:
+  INT16 len:
+  SEQ
+    SEQ j = 0 FOR 2
+      SEQ
+        []BYTE thewaitbytes RETYPES thewait:
+        fmas ? len::thewaitbytes
+        thewaits[j] :=
+          thewait
+    SEQ j = 0 FOR 2
+      SEQ
+        thewait := thewaits[j]
+        clock ? thetime
+        clock ? AFTER (thetime PLUS thewait)
+        []BYTE thewaitbytes RETYPES thewait:
+        tmas ! len::thewaitbytes
+:
+--}}}

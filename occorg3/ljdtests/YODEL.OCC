@@ -1,0 +1,4 @@
+PROC yodel()
+  BOOL a :
+  a := TRUE
+:

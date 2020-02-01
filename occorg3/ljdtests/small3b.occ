@@ -1,0 +1,5 @@
+REAL32 FUNCTION awk(REAL32 a, REAL32 b)
+  VALOF
+    SKIP
+    RESULT sin(b)
+:

@@ -1,0 +1,445 @@
+Hi Brian,
+
+A couple more notes.
+
+I got a book, Writing an Interpreter in Go by Thorsten Ball, but it seems off target because, on p 62 in the section TOP DOWN OPERATOR PRECEDENCE (OR: PRATT PARSING) he rejects BNF - which seems an essential part of the language description. And he seems to insist on lots of operator precedence - which occam usually rejects - and the language he practices on seems to have a value for every phrase, like C and not occam, so that all the actions are side effects.
+
+80 G Syntax summary
+G.1 Syntax in context
+The following tables present the syntax of occam 2. Each syntactic object appears in context. However, the following BNF should not be read in isolation. The syntactic objects are kept to a minimum, and must be considered in association with the semantic rules given in the definition. Thus, for example, the use of primitive.type and type in the syntax
+simple.protocol = primitive.type: : [] type
+is clarified by the semantics which point out that the primitive. type must be an integer or byte type, and that type must be a data type.
+Processes
+action assignment
+input output
+assignment variable. list expression. list
+G.1.2 Construction
+construction
+sequence
+conditional
+choice guarded. choice
+boolean selection option
+selector
+case. expression
+G.1.1
+process
+SKIP I STOP
+action
+construction
+instance
+assignment I input I output
+variable :=expression channel? variable
+channel ! expression
+variable.list :=expression.list {1 , variable}
+{1 , expression}
+sequence I conditional I selection I loop parallel I alternation
+SEQ
+{ process
+loop WHILE boolean process
+parallel P A R
+{ process
+I F
+{ choice } guarded.choice I conditional boolean
+process expression
+CASE selector { option }
+{1 , case.expression } process
+ELSE
+process expression expression
+G Syntax summary
+81
+alternation
+alternative guarded. alternative
+guard
+G.1.3 Replicator
+A L T
+{ alternative }
+guarded.alternative 1 alternation guard
+process input
+boolean & input boolean & SKIP
+sequence
+conditional
+parallel
+alternation
+replicator base count
+SEQ replicator process
+IF replicator
+choice
+PAR replicator
+process ALT replicator
+alternative
+name =base FOR count expression
+expression
+primitive. type array. type
+G.1.4
+Types
+type primitive. type
+array.type
+CHAN OF TIMER BOOL BYTE INT INT16 INT32 INT64 REAL32 REAL64
+protocol
+G.1.5
+literal
+Literal
+[ expression] type
+integer
+byte
+integer ( type) byte (type) rea/(type) string
+TRUE 1 FALSE
+digits 1 #hex.digits
+, character'
+digits. digits 1 digits. digitsEexponent +digits 1 - digits
+integer
+byte
+real
+exponent
+digit 0111213141516171819 hex.digit digit 1A 1B 1CID 1ElF
+82 G
+Syntax summary
+G.1.6 Declaration
+declaration =
+G.1.7 Protocol
+definition protocol simple. protocol input
+input. item
+output output. item
+protocol
+type {1 , name}
+PROTOCOL name IS simple.protocol : PROTOCOL name IS sequential.protocol : name
+type
+primitive. type : : [ ] type channel? input.item variable
+variable : : variable channel ! output.item expression
+expression : : expression simple. protocol
+{1 ; simple. protocol } channel? {1 ; input.item}
+sequential. protocol
+input
+output channel ! {1 ; output. item }
+definition
+tagged. protocol tag
+output
+case. input variant
+tagged. list
+process input
+alternative
+PROTOCOL name CASE
+{ tagged. protocol
+tag
+tag ; sequential.protocol name
+channel ! tag
+channel ! tag ; {1 output. item }
+channel? CASE { variant }
+tagged. list process
+specification
+variant
+tag
+tag ; {1 ; input.item } case. input
+channel? CASE tagged.list
+channel? CASE { variant}
+boolean & channel? CASE { variant}
+G.1.8
+input
+Timer access
+timer.input delayed. input
+timer. input delayed. input timer? variable timer? A F T E R
+expression
+G Syntax summary 83
+G.1.9 Element
+element
+subscript variable channel timer
+element [ subscript ]
+[ element FROM subscript FOR subscript ]
+name expression element element element
+G.1.10 Expression
+operand
+expression
+table
+expression conversion
+element literal table
+( expression)
+monadic.operator operand operand dyadic.operator operand conversion
+operand
+table [ subscript ]
+[ {1 , expression} ]
+[ table FROM subscript FOR count] MOSTPOS type
+MOSTNEG type
+primitive.type operand
+primitive. type ROUND operand primitive.type TRUNC operand
+G.1.11 Abbreviation
+abbreviation specifier name IS element: name I S element :
+V AL specifier name I S expression :
+VAL name I S expression : specifier primitive. type
+[] specifier
+[ expression ] specifier
+G.1.12 Scope
+process specification process
+choice specification choice
+option specification option
+alternative specification alternative
+variant specification variant
+valof specification valof
+specification declaration I abbreviation I definition
+84
+G Syntax summary
+G.1.13 Procedure
+definition
+formal
+procedure.body instance
+actual
+G.1.14 Function
+value. process v a l o f
+operand expression.list
+definition
+function. body operand expression.list definition
+PROC name ( {o , formal}) procedure.body
+specifier {1 , name}
+VAL specifier {1 , name} process
+name ( {o , actual} ) element
+expression
+valof
+V ALOF
+process
+RESULT expression.list specification
+valof
+( value.process )
+( value.process )
+{1 , primitive.type} FUNCTION name ( {o , formal}) function.body
+value. process
+name ( {o , expression} )
+name ( {o , expression} )
+{1 , primitive. type } FUNCTION name ( {o , formal})
+I S
+expression. list :
+G Syntax summary
+G Syntax summary
+85
+G.1.15 Configuration
+piacedpar
+parallel parallel
+alternation
+process allocation definition
+primitive. type port
+input
+output protocol
+PLACED P AR
+{ placedpar } PLACED PAR replicator
+placedpar PROCESSOR expression
+process placedpar
+PRI PAR
+{ process} PRI PAR replicator
+process
+P R I AL T
+{ alternative } PRI ALT replicator
+alternative
+allocation
+process
+PLACE name AT expression :
+specifier name RETYPES element :
+VAL specifier name RETYPES expression :
+PORT OF type element
+port? variable port ! expression ANY
+
+=========================
+
+G.2 Ordered syntax
+The following tables present the syntax of occam with each syntactic object placed in alphabetical order.
+specifier name IS element:
+name IS element:
+VAL specifier name I S expression : VAL name I S expression :
+assignment input output
+element expression
+PLACE name AT expression :
+abbreviation
+action
+actual
+allocation
+alternation
+alternative
+array type assignment
+base
+boolean
+byte
+case. expression expression
+case. input
+channel choice
+=
+channel? CASE { variant}
+element
+guarded.choice I conditional specification
+choice
+[
+A L T
+{ alternative ALT replicator
+alternative
+PRI ALT
+{ alternative } PRI ALT replicator
+alternative
+guarded.alternative I alternation specification
+alternative
+channel? CASE
+{ variant}
+boolean & channel? CASE
+{ variant} expression] type
+variable :=expression variable.list :=expression.list
+expression expression
+' character'
+G Syntax summary
+87
+conditional
+construction
+conversion
+I F
+IF replicator
+choice
+sequence 1 conditional 1 selection 1 loop
+parallel 1 alternation
+primitive.type operand primitive.type ROUND operand primitive.type TRUNC operand
+count = expression
+{ choice}
+type {1 , name} :
+PROTOCOL name IS simple.protocol : PROTOCOL name IS sequential.protocol : PROTOCOL name
+CASE
+{ tagged. protocol } PROC name ( {o , formal})
+procedure.body
+{1 , primitive.type} FUNCTION name ( {o , formal}) function. body
+{1 , primitive.type } FUNCTION name ( {o , formal}) IS expression.list : specifier name RETYPES element :
+V AL specifier name RETYPES expression :
+timer? AFTER expression d~ = 0111213141516171819
+declaration definition =
+delayed.input
+element
+exponent expression
+=
+=
+element [ subscript ]
+[ element FROM subscript FOR subscript ]
+name
++digits 1 - digits
+monadic.operator operand operand dyadic.operator operand conversion
+operand
+MOSTPOS type 1MOSTNEG type
+( value.process )
+name ( {o , expression} ) {1 , expression}
+specifier {1 , name}
+VAL specifier {1 , name}
+value.process
+expression.list
+formal
+function. body
+88 G
+Syntax summary
+guard input
+boolean & input
+boolean & SKIP guarded. alternative guard
+guarded. choice
+hex.digit input ~
+input. item
+instance =
+integer literal
+= =
+loop = WHILE boolean process
+operand
+option
+output
+element literal table
+( expression)
+( value.process
+)
+name ( {o , expression} )
+{1 , case.expression } process
+ELSE
+process specification option
+channel ! expression channel ! output.item channel ! {1 ; output.item} channel ! tag
+channel ! tag ; {1 ; output.item } port ! expression
+process
+= boolean process
+digit I A I B I CID I E lF
+channel? variable channel? input.item channel? {1 ; input.item } channel? CASE tagged.list timer.input
+delayed.input
+port? variable
+variable
+variable : : variable
+name ( {o , actual} ) digits I #hex.digits
+integer
+byte
+integer (type) byte (type) real (type) string
+TRUE I FALSE
+G Syntax summary 89
+output. item
+parallel
+placedpar
+port = element
+primitive. type
+=
+protocol
+procedure. body process =
+CHAN OF TIMER
+BOOL
+BYTE
+INT
+INT16
+INT32
+INT64 REAL32 REAL64
+PORT OF type
+process
+SKIP I STOP action construction instance
+case. input specification process allocation process
+name simple.protocol ANY
+protocol
+real
+replicator selection
+digits. digits I digits. digitsEexponent name =base FOR count
+CASE selector { option }
+selector
+expression
+expression
+expression : : expression
+P AR
+{ process} PAR replicator
+process
+PRI PAR
+{ process} PRI PAR replicator
+process placedpar
+PLACED P AR
+{ placedpar } PLACED PAR replicator
+placedpar PROCESSOR expression
+process
+90 G
+Syntax summary
+sequence SEQ
+{ process }
+SEQ replicator process
+sequential.protocol {1 ; simple.protocol }
+simple.protocol
+specification
+specifier
+subscript table =
+tag tagged. list
+type
+primitive.type: : [] type
+declaration I abbreviation I definition
+primitive. type
+[] specifier
+[ expression] specifier
+expression
+table [ subscript ]
+[ {1 , expression} ]
+[ table FROM subscript FOR count]
+tagged. protocol
+timer = element
+timer.input type
+valof
+timer? variable
+primitive. type array. type
+V ALOF
+process
+RESULT expression.list specification
+valof
+name
+=
+tag
+tag; {1 ; input.item}
+tag
+tag; sequential.protocol
+value. process
+variable = element
+variable. list {1 , variable}
+variant = tagged. list process
+specification variant
+valof

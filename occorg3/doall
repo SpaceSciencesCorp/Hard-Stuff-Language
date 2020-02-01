@@ -1,0 +1,82 @@
+mkdir diffs
+cd cgnoi
+./mkcgnoi
+for i in mk?cgnoi ; do ls $i ; ./$i ; echo Done $i ; sleep 1 ; done
+for i in mk?? ; do ls $i ; ./$i ; echo Done $i ; sleep 1 ; done
+cd -
+echo -e -n "RECONSTRUCTION OF cgtests done . . . hit when ready"
+read line
+cd occlang6
+../S/mkparser
+../S/compilem
+echo -e -n "occlang6 parsing done . . . hit when ready"
+read line
+cd ../occlang7
+../S/mkparser
+../S/compilem
+echo -e -n "occlang7 parsing done . . . hit when ready"
+read line
+for i in ljdtests/*.OUT ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in ljdtests/*.out ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in cgtests/*.OUT ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in cgtests/*.out ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+echo -e -n "check occlang7 parse done . . . hit when ready"
+read line
+cd -
+for i in ljdtests/*.OUT ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in ljdtests/*.out ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in cgtests/*.OUT ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+for i in cgtests/*.out ; do echo -e -n "$i: " ; tail -n 1 $i ; done
+echo -e -n "check occlang6 parse done . . . hit when ready"
+read line
+cd ../occlang6
+../S/mkCRInl 
+../S/mkdes9 ../S/descend 
+echo -e -n "occlang6 descent done . . . hit when ready"
+read line
+cd ../occlang7
+../S/mkCRInl 
+../S/mkdes9 ../S/descend 
+echo -e -n "occlang7 descent done . . . hit when ready"
+read line
+cd ../occlang6
+./mklevs
+echo -e -n "occlang6 levels done . . . hit when ready"
+read line
+cd ../occlang7
+./mklevs
+echo -e -n "occlang7 levels done . . . hit when ready"
+read line
+cd occlangn
+./mkCRI0nl > CRI0.nl
+diff CRI0.nl CRI.nl > ../../diffs/occlangn-CRInl.dif
+../../S/mkdes9 ../../S/descend 
+./mklevs 
+echo -e -n "occlang7 enclosure levels done . . . hit when ready"
+read line
+cd ../occlangp
+./mkCRI0nl > CRI0.nl
+diff CRI0.nl CRI.nl > ../../diffs/occlangp-CRInl.dif
+../../S/mkdes9 ../../S/descend 
+./mklevs 
+echo -e -n "occlang7 indentation levels done . . . hit when ready"
+read line
+cd ../occleafn/
+diff ../occlangn/CRI.nl CRI.nl > ../../diffs/occleafn-CRInl.dif
+../../S/mkdes9 ../../S/descend
+./mklevs 
+echo -e -n "occlang7 enclosure leaf levels done . . . hit when ready"
+read line
+cd ../occleafp
+diff ../occlangp/CRI.nl CRI0a.nl > ../../diffs/occleafp-CRI0anl.dif
+diff CRI0a.nl CRI0b.nl > ../../diffs/occleafp-CRI0bnl.dif
+diff CRI0b.nl CRI0c.nl > ../../diffs/occleafp-CRI0cnl.dif
+diff CRI0c.nl CRI0d.nl > ../../diffs/occleafp-CRI0dnl.dif
+diff CRI0d.nl CRI0e.nl > ../../diffs/occleafp-CRI0enl.dif
+diff CRI0e.nl CRI0f.nl > ../../diffs/occleafp-CRI0fnl.dif
+diff CRI0f.nl CRI.nl > ../../diffs/occleafp-CRInl.dif
+../../S/mkdes9 ../../S/descend
+./mklevs 
+echo -e -n "occlang7 indentation leaf levels done . . . hit when ready"
+read line
+cd ../../
